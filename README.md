@@ -36,7 +36,6 @@ Make sure to replace `your_api_key_here` and `your_api_secret_here` with the act
 
 > If you encounter any issues while running the examples, ensure all dependencies are properly installed and the environment variables are correctly configured. For more information on the Foxbit API and its functionalities, refer to the [official Foxbit API documentation](https://docs.foxbit.com.br/).
 
-
 ## Disclaimer
 
-The samples in this repository are provided "as is" for educational purposes only. Please review the code and understand the implications before using it in a production environment.
+> The samples in this repository are provided "as is" for educational purposes only. Please review the code and understand the implications before using it in a production environment.
