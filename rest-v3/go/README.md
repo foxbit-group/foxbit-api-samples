@@ -8,6 +8,8 @@ Before you begin, ensure you have the following prerequisites installed on your 
 
 - GoLang: These examples are written for Go, ensure you have the latest stable version installed.
 
+## Getting Started
+
 1. **Configure API Keys**: You must read the main README file located at the root of the project for general information on setting up your environment, including configuring your API keys as environment variables.
 
 2. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
