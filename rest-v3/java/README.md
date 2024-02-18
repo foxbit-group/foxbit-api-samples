@@ -29,12 +29,3 @@ mvn exec:java -Dexec.mainClass="br.com.foxbit.samples.FoxbitApiSamples"
 
 These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
 For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/).
-
-
-
-
-
-
-```shell
-mvn archetype:generate -DgroupId=br.com.foxbit.samples -DartifactId=foxbit-api-samples -DarchetypeArtifactId=maven-archetype-quickstart -DinteractiveMode=false
-```
