@@ -15,6 +15,16 @@ This repository contains sample code in various programming languages, demonstra
 - Account authentication and management
 - Real-time market updates via WebSocket
 
+### Currently Implemented Examples
+
+- [REST v3](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3)
+    - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/javascript)
+    - [TypeScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/typescript)
+    - [GoLang](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/go)
+    - [Ruby](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/ruby)
+- [WebSocket v2](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2)
+    - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2/javascript)
+
 ## Getting Started
 
 To get started with the Foxbit API samples, follow these steps:
