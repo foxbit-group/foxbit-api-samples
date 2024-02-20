@@ -74,7 +74,15 @@ async function request(method, path, params, body) {
     const orderResponse = await request('POST', '/rest/v3/orders', null, order);
     console.log('Response:', orderResponse.data);
 
-    // Request to get the order book
+    // Get active orders
+    const orderParams = {
+      market_symbol: 'btcbrl',
+      state: 'ACTIVE',
+    };
+    const activeOrdersResponse = await request('GET', '/rest/v3/orders', orderParams);
+    console.log('Response:', activeOrdersResponse.data);
+
+    // Request to cancel the order
     const orderToCancel = {
       type: 'ID',
       id: orderResponse.data.id
