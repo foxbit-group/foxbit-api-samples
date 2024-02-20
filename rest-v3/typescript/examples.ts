@@ -79,6 +79,14 @@ async function request(method: string, path: string, params?: Record<string, any
     const orderResponse = await request('POST', '/rest/v3/orders', undefined, order);
     console.log('Response:', orderResponse.data);
 
+    // Get active orders
+    const ordersParam = {
+      market_symbol: 'btcbrl',
+      state: 'ACTIVE',
+    };
+    const ordersResponse = await request('GET', '/rest/v3/orders', ordersParam);
+    console.log('Response:', ordersResponse.data);
+
     // Request to get the order book
     const orderToCancel = {
       type: 'ID',
