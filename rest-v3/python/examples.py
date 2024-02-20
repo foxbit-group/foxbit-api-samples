@@ -67,6 +67,14 @@ if __name__ == '__main__':
         orderResponse = request('POST', '/rest/v3/orders', None, order)
         print('Response:', orderResponse)
 
+        # Get active orders
+        ordersParam = {
+            'market_symbol': 'btcbrl',
+            'state': 'ACTIVE'
+        }
+        ordersResponse = request('GET', '/rest/v3/orders', ordersParam, None)
+        print('Response:', ordersResponse)
+
         # Cancel the order
         orderToCancel = {
             'type': 'ID',
