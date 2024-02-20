@@ -65,6 +65,14 @@ begin
   order_response = request('POST', '/rest/v3/orders', {}, order)
   puts 'Response:', order_response
 
+  # Get active orders
+  orders_param = {
+    market_symbol: 'btcbrl',
+    state: 'ACTIVE',
+  }
+  orders_response = request('GET', '/rest/v3/orders', orders_param, nil)
+  puts 'Response:', orders_response
+
   # Request to cancel the order
   order_to_cancel = { type: :ID, id: order_response['id'] }
   cancel_response = request('PUT', '/rest/v3/orders/cancel', {}, order_to_cancel)
