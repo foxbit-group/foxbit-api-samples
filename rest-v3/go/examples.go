@@ -140,6 +140,8 @@ func cancelOrder(orderID string) ([]byte, error) {
 }
 
 func main() {
+	fmt.Println("FOXBIT_API_KEY:", os.Getenv("FOXBIT_API_KEY"))
+
 	// Get user information
 	mePath := "/rest/v3/me"
 	meResponse, err := request("GET", mePath, nil, nil)
@@ -154,6 +156,8 @@ func main() {
 		log.Fatal("Failed to create order:", err)
 	}
 	fmt.Println("Order Response:", string(orderResponse))
+
+	time.Sleep(2 * time.Second)
 
 	// Get active orders
 	activeOrdersResponse, err := getActiveOrders("btcbrl")

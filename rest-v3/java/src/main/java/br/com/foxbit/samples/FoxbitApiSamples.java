@@ -23,6 +23,8 @@ public class FoxbitApiSamples {
     @SuppressWarnings("unchecked")
     public static void main(String[] args) {
         try {
+            System.out.println("FOXBIT_API_KEY: " + API_KEY);
+
             // Get the user information
             String meResponse = request("GET", "/rest/v3/me", null, null);
             System.out.println("Response: " + meResponse);
@@ -36,6 +38,8 @@ public class FoxbitApiSamples {
             order.put("quantity", "0.0001");
             String orderResponse = request("POST", "/rest/v3/orders", null, order.toJSONString());
             System.out.println("Response: " + orderResponse);
+
+            Thread.sleep(2000);
 
             // Get active orders
             Map<String, String> ordersParam = new HashMap<>();

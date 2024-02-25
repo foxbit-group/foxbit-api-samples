@@ -52,6 +52,8 @@ def request(method, path, params, body):
 
 if __name__ == '__main__':
     try:
+        print('FOXBIT_API_KEY:', api_key)
+
         # Get user info
         meResponse = request('GET', '/rest/v3/me', None, None)
         print('Response:', meResponse)
@@ -67,12 +69,14 @@ if __name__ == '__main__':
         orderResponse = request('POST', '/rest/v3/orders', None, order)
         print('Response:', orderResponse)
 
+        time.sleep(2)
+
         # Get active orders
-        ordersParam = {
+        ordersParams = {
             'market_symbol': 'btcbrl',
             'state': 'ACTIVE'
         }
-        ordersResponse = request('GET', '/rest/v3/orders', ordersParam, None)
+        ordersResponse = request('GET', '/rest/v3/orders', ordersParams, None)
         print('Response:', ordersResponse)
 
         # Cancel the order

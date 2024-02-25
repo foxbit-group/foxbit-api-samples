@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -39,6 +40,8 @@ class Program
             };
             var orderResponse = await RequestAsync("POST", "/rest/v3/orders", null, order);
             Console.WriteLine("Response: " + orderResponse);
+
+            Thread.Sleep(2000);
 
             // Get active orders
             var orderParams = new

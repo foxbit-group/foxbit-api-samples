@@ -50,6 +50,8 @@ rescue Faraday::Error => e
 end
 
 begin
+  puts 'FOXBIT_API_KEY:', ENV['FOXBIT_API_KEY']
+
   # Get the user information
   me_response = request('GET', '/rest/v3/me', {}, nil)
   puts 'Response:', me_response
@@ -64,6 +66,8 @@ begin
   }
   order_response = request('POST', '/rest/v3/orders', {}, order)
   puts 'Response:', order_response
+
+  sleep 2
 
   # Get active orders
   orders_param = {
