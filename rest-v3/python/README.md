@@ -14,7 +14,7 @@ Before you begin, ensure you have the following prerequisites installed on your 
 
 ```bash
 python3 -m venv foxbit-api-samples
-source foxbit-env/bin/activate
+source foxbit-api-samples/bin/activate
 ```
 
 2. **Install Dependencies**: Navigate to the Python examples directory in your terminal and install the necessary dependencies.

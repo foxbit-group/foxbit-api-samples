@@ -57,8 +57,14 @@ async function request(method, path, params, body) {
   }
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 (async () => {
   try {
+    console.log('FOXBIT_API_KEY:', process.env.FOXBIT_API_KEY);
+
     // Get the user information
     const meResponse = await request('GET', '/rest/v3/me');
     console.log('Response:', meResponse.data);
@@ -74,7 +80,17 @@ async function request(method, path, params, body) {
     const orderResponse = await request('POST', '/rest/v3/orders', null, order);
     console.log('Response:', orderResponse.data);
 
-    // Request to get the order book
+    await sleep(2000);
+
+    // Get active orders
+    const orderParams = {
+      market_symbol: 'btcbrl',
+      state: 'ACTIVE',
+    };
+    const activeOrdersResponse = await request('GET', '/rest/v3/orders', orderParams);
+    console.log('Response:', activeOrdersResponse.data);
+
+    // Request to cancel the order
     const orderToCancel = {
       type: 'ID',
       id: orderResponse.data.id

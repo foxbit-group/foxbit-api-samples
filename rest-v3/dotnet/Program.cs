@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -38,6 +41,17 @@ class Program
             var orderResponse = await RequestAsync("POST", "/rest/v3/orders", null, order);
             Console.WriteLine("Response: " + orderResponse);
 
+            Thread.Sleep(2000);
+
+            // Get active orders
+            var orderParams = new
+            {
+                market_symbol = "btcbrl",
+                state = "ACTIVE",
+            };
+            var ordersResponse = await RequestAsync("GET", "/rest/v3/orders", orderParams, null);
+            Console.WriteLine("Response: " + ordersResponse);
+
             // Cancel the order
             var orderToCancel = new
             {
@@ -53,9 +67,26 @@ class Program
         }
     }
 
+    static string ConvertToQueryString(object paramsObj)
+    {
+        if (paramsObj == null) return string.Empty;
+
+        var properties = paramsObj.GetType().GetProperties();
+        var keyValuePairs = new List<string>();
+        foreach (var property in properties)
+        {
+            var value = property.GetValue(paramsObj, null);
+            if (value != null)
+            {
+                keyValuePairs.Add($"{WebUtility.UrlEncode(property.Name)}={WebUtility.UrlEncode(value.ToString())}");
+            }
+        }
+        return string.Join("&", keyValuePairs);
+    }
+
     static string Sign(string method, string path, string queryString, string body, string timestamp)
     {
-        var preHash = timestamp + method + path + queryString + body;
+        var preHash = $"{timestamp}{method}{path}{queryString}{body}";
         Console.WriteLine("PreHash: " + preHash);
 
         var secret = Configuration["FOXBIT_API_SECRET"];
@@ -73,12 +104,14 @@ class Program
         Console.WriteLine("--------------------------------------------------");
         Console.WriteLine("Requesting: " + method + " " + path);
 
-        var queryString = paramsObj != null ? $"?{paramsObj}" : string.Empty;
+        var queryString = ConvertToQueryString(paramsObj);
         var body = bodyObj != null ? JsonConvert.SerializeObject(bodyObj) : string.Empty;
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         var signature = Sign(method, path, queryString, body, timestamp);
+        var requestUri = $"{ApiBaseUrl}{path}{(string.IsNullOrEmpty(queryString) ? "" : "?" + queryString)}";
+        Console.WriteLine("Full URI: " + requestUri);
 
-        var request = new HttpRequestMessage(new HttpMethod(method), $"{ApiBaseUrl}{path}{queryString}")
+        var request = new HttpRequestMessage(new HttpMethod(method), requestUri)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };

@@ -115,6 +115,18 @@ func createOrder(marketSymbol, side, orderType, price, quantity string) ([]byte,
 	return response, nil
 }
 
+func getActiveOrders(marketSymbol string) ([]byte, error) {
+	params := map[string]string{
+		"market_symbol": marketSymbol,
+		"state":         "ACTIVE",
+	}
+	response, err := request("GET", "/rest/v3/orders", params, nil)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func cancelOrder(orderID string) ([]byte, error) {
 	orderToCancel := map[string]interface{}{
 		"type": "ID",
@@ -128,6 +140,8 @@ func cancelOrder(orderID string) ([]byte, error) {
 }
 
 func main() {
+	fmt.Println("FOXBIT_API_KEY:", os.Getenv("FOXBIT_API_KEY"))
+
 	// Get user information
 	mePath := "/rest/v3/me"
 	meResponse, err := request("GET", mePath, nil, nil)
@@ -142,6 +156,15 @@ func main() {
 		log.Fatal("Failed to create order:", err)
 	}
 	fmt.Println("Order Response:", string(orderResponse))
+
+	time.Sleep(2 * time.Second)
+
+	// Get active orders
+	activeOrdersResponse, err := getActiveOrders("btcbrl")
+	if err != nil {
+		log.Fatal("Failed to get active orders:", err)
+	}
+	fmt.Println("Active Orders Response:", string(activeOrdersResponse))
 
 	// Get order information
 	var orderData map[string]interface{}

@@ -23,6 +23,8 @@ public class FoxbitApiSamples {
     @SuppressWarnings("unchecked")
     public static void main(String[] args) {
         try {
+            System.out.println("FOXBIT_API_KEY: " + API_KEY);
+
             // Get the user information
             String meResponse = request("GET", "/rest/v3/me", null, null);
             System.out.println("Response: " + meResponse);
@@ -36,6 +38,15 @@ public class FoxbitApiSamples {
             order.put("quantity", "0.0001");
             String orderResponse = request("POST", "/rest/v3/orders", null, order.toJSONString());
             System.out.println("Response: " + orderResponse);
+
+            Thread.sleep(2000);
+
+            // Get active orders
+            Map<String, String> ordersParam = new HashMap<>();
+            ordersParam.put("market_symbol", "btcbrl");
+            ordersParam.put("state", "ACTIVE");
+            String ordersResponse = request("GET", "/rest/v3/orders", ordersParam, null);
+            System.out.println("Response: " + ordersResponse);
 
             // Parse response to get the order ID
             JSONObject orderResponseJson = (JSONObject) new JSONParser().parse(orderResponse);
@@ -86,16 +97,22 @@ public class FoxbitApiSamples {
         Map<String, String> signatureData = new HashMap<>();
         signatureData.put("signature", hexString.toString());
         signatureData.put("timestamp", Long.toString(timestamp));
+        signatureData.put("queryString", queryString.toString());
 
         return signatureData;
     }
 
     private static String request(String method, String path, Map<String, String> params, String body) throws Exception {
         System.out.println("--------------------------------------------------");
-        System.out.println("Requesting: " + method + " " + path);
 
-        CloseableHttpClient client = HttpClients.createDefault();
-        String url = API_BASE_URL + path;
+        Map<String, String> signatureData = sign(method, path, params, body);
+        String queryString = signatureData.get("queryString");        
+        StringBuilder urlBuilder = new StringBuilder(API_BASE_URL).append(path);
+        if (!queryString.isEmpty()) {
+            urlBuilder.append("?").append(queryString);
+        }
+        String url = urlBuilder.toString();
+        System.out.println("Requesting: " + method + " " + url);
 
         HttpRequestBase request;
         if ("GET".equalsIgnoreCase(method)) {
@@ -109,8 +126,6 @@ public class FoxbitApiSamples {
         } else {
             throw new IllegalArgumentException("Unsupported HTTP method: " + method);
         }
-
-        Map<String, String> signatureData = sign(method, path, params, body);
         String signature = signatureData.get("signature");
         String timestamp = signatureData.get("timestamp");
         request.setHeader("X-FB-ACCESS-KEY", API_KEY);
@@ -118,6 +133,7 @@ public class FoxbitApiSamples {
         request.setHeader("X-FB-ACCESS-SIGNATURE", signature);
         request.setHeader("Content-Type", "application/json");
 
+        CloseableHttpClient client = HttpClients.createDefault();
         CloseableHttpResponse response = client.execute(request);
         String responseString = EntityUtils.toString(response.getEntity());
         client.close();

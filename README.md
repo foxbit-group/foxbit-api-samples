@@ -23,6 +23,7 @@ This repository contains sample code in various programming languages, demonstra
     - [GoLang](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/go)
     - [Python](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/python)
     - [Ruby](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/ruby)
+    - [PHP](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/php)
     - [DotNet C#](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/dotnet)
     - [Java](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/java)
 - [WebSocket v2](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2)
