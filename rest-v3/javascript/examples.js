@@ -7,7 +7,7 @@ function sign(method, path, params, body) {
   let queryString = '';
   if (params) {
     queryString = Object.keys(params).map((key) => {
-      return `${key}=${encodeURIComponent(params[key])}`;
+      return `${key}=${params[key]}`;
     }).join('&');
   }
 
