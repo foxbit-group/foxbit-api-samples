@@ -1,13 +1,7 @@
 // Instantiate Websocket module
 const WebSocket = require("ws");
 const crypto = require("crypto-js");
-const readline = require("readline");
-
-// Creating user interface
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+const { select } = require("@inquirer/prompts");
 
 // WebSocketAPI setup
 const wsAddress = "wss://api.foxbit.com.br/";
@@ -96,27 +90,45 @@ function closeConn() {
 }
 
 // User's interface
-function handleChannelChoice() {
-  rl.question(
-    "Select a channel to use (SubscribeLevel2, SubscribeAccountEvents): ",
-    (channel) => {
-      console.log("Channel selected: ", channel);
+async function handleChannelChoice() {
+  const channel = await select({
+    message: "Select a channel to use",
+    choices: [
+      { name: "SubscribeLevel1", value: "SubscribeLevel1" },
+      { name: "SubscribeLevel2", value: "SubscribeLevel2" },
+      { name: "SubscribeAccountEvents", value: "SubscribeAccountEvents" },
+    ],
+  });
 
-      switch (channel) {
-        case "SubscribeLevel2":
-          subscribeLevel2();
-          break;
-        case "SubscribeAccountEvents":
-          subscribeAccountEvents();
-          break;
-        default:
-          console.log("Channel not allowed!");
-          closeConn();
-          break;
-      }
+  console.log("Channel selected: ", channel);
 
-      rl.close();
-    }
+  switch (channel) {
+    case "SubscribeLevel1":
+      subscribeLevel1();
+      break;
+    case "SubscribeLevel2":
+      subscribeLevel2();
+      break;
+    case "SubscribeAccountEvents":
+      subscribeAccountEvents();
+      break;
+    default:
+      console.log("Channel not allowed!");
+      closeConn();
+      break;
+  }
+}
+
+// Function to subscribe on the public channel SubscribeLevel1
+function subscribeLevel1() {
+  console.log("SubscribeLevel1");
+
+  ws.send(
+    JSON.stringify({
+      ...messageFrame,
+      n: "SubscribeLevel1",
+      o: JSON.stringify({ OMSId: 1, MarketId: "btcbrl" }),
+    })
   );
 }
 
