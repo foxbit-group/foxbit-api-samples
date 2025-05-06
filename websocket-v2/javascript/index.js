@@ -8,9 +8,9 @@ const wsAddress = "wss://api.foxbit.com.br/";
 const ws = new WebSocket(wsAddress);
 
 // Credentials
-const userId = "";
-const apiKey = "";
-const apiSecret = "";
+const userId = process.env.FOXBIT_USER_ID;
+const apiKey = process.env.FOXBIT_API_KEY;
+const apiSecret = process.env.FOXBIT_API_SECRET;
 
 // Authentication setup
 const nonce = Date.now();
@@ -29,7 +29,7 @@ const messageFrame = {
 
 // Open connection to websocket
 ws.onopen = () => {
-  console.log("Connect to v2 Websocket!");
+  console.log("Connect to v2 WebSocket!");
 
   // Send a message to AuthenticateUser
   ws.send(
