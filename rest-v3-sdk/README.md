@@ -1,6 +1,6 @@
-# Foxbit Exchange API Examples
+# Foxbit SDK Examples
 
-This repository demonstrates how the Foxbit exchange API works, showcasing various operations such as fetching market data, placing orders, and managing accounts. It serves as a guide for developers who want to integrate Foxbit's exchange functionality into their applications.
+This repository contains examples demonstrating how to use the official Foxbit SDK to interact with the Foxbit exchange API. The examples cover various operations such as fetching market data, placing orders, and managing accounts using the SDK. This is intended as a guide for developers who want to integrate Foxbit's exchange functionality into their applications using the SDK.
 
 ## Features
 
@@ -24,8 +24,7 @@ git clone git@github.com:foxbit-group/foxbit-api-samples.git
 cd foxbit-api-samples
 ```
 
-Now you can choose one language to start. Each one has your own README file that explains how run the code.
-Please pay attention to the requirements.
+Now you can choose one language to start. Each folder contains examples using the Foxbit SDK. Please refer to the respective README file in each folder for instructions and requirements.
 
 ## Contributing
 
