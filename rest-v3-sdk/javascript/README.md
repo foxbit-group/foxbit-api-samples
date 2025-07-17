@@ -1,5 +1,9 @@
 # Foxbit API REST v3 JavaScript SDK Examples
 
+[![npm version](https://img.shields.io/npm/v/@foxbit-group/rest-api.svg?style=flat)](https://www.npmjs.com/package/@foxbit-group/rest-api)
+
+> **SDK Oficial:** [@foxbit-group/rest-api](https://www.npmjs.com/package/@foxbit-group/rest-api)
+
 This directory contains JavaScript examples demonstrating how to interact with the Foxbit API REST v3 using the official Foxbit SDK. These scripts cover a range of functionalities, from fetching market data to placing orders and managing your account, now leveraging the SDK for easier integration and improved reliability.
 
 ## Prerequisites
