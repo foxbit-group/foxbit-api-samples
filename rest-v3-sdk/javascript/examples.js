@@ -46,7 +46,7 @@ function sleep(ms) {
     });
     console.log("Response:", ordersResponse.data);
 
-    // Request to get the order book
+    // Request to cancel the order
     const cancelResponse = await tradingApi.cancelOrders({
       cancelOrdersRequest: {
         type: "ID",

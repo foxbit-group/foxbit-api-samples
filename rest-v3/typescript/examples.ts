@@ -95,7 +95,7 @@ function sleep(ms: number): Promise<void> {
     const ordersResponse = await request('GET', '/rest/v3/orders', ordersParam);
     console.log('Response:', ordersResponse.data);
 
-    // Request to get the order book
+    // Request to cancel the order
     const orderToCancel = {
       type: 'ID',
       id: orderResponse.data.id
