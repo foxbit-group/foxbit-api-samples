@@ -12,7 +12,7 @@ function sign(method: string, path: string, params?: Record<string, any>, body?:
   let queryString = '';
   if (params) {
     queryString = Object.keys(params).map((key) => {
-      return `${key}=${encodeURIComponent(params[key])}`;
+      return `${key}=${params[key]}`;
     }).join('&');
   }
 
@@ -74,12 +74,20 @@ function sleep(ms: number): Promise<void> {
     const meResponse = await request('GET', '/rest/v3/me');
     console.log('Response:', meResponse.data);
 
+    // Get current price
+    const marketSymbol = 'btcbrl';
+    const tickerResponse = await request('GET', `/rest/v3/markets/${marketSymbol}/ticker/24hr`);
+    const ticker = tickerResponse.data?.data?.[0];
+    console.log('Response:', ticker);
+
     // Request to create a new order
+    const lastPrice = Number(ticker.best.bid.price);
+    const targetPrice = (lastPrice * 0.9).toString(); // Calculate target price: 10% below the best bid price
     const order = {
-      market_symbol: 'btcbrl',
+      market_symbol: marketSymbol,
       side: 'BUY',
       type: 'LIMIT',
-      price: '10.0',
+      price: targetPrice,
       quantity: '0.0001',
     };
     const orderResponse = await request('POST', '/rest/v3/orders', undefined, order);
@@ -88,9 +96,11 @@ function sleep(ms: number): Promise<void> {
     await sleep(2000);
 
     // Get active orders
+    const oneHourAgoISO = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const ordersParam = {
-      market_symbol: 'btcbrl',
+      market_symbol: marketSymbol,
       state: 'ACTIVE',
+      start_time: oneHourAgoISO, // Optional: included to test signature behavior with special chars
     };
     const ordersResponse = await request('GET', '/rest/v3/orders', ordersParam);
     console.log('Response:', ordersResponse.data);
