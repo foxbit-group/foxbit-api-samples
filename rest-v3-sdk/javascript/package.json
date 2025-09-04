@@ -2,15 +2,13 @@
   "name": "javascript",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "examples.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inquirer/prompts": "^7.5.0",
-    "crypto-js": "^4.2.0",
-    "ws": "^8.18.2"
+    "@foxbit-group/rest-api": "^0.1.3"
   }
 }
