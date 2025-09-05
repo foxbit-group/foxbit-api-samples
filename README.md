@@ -15,23 +15,42 @@ This repository contains sample code in various programming languages, demonstra
 - Account authentication and management
 - Real-time market updates via WebSocket
 
+### Official SDK
+
+In addition to examples using direct HTTP requests, we also provide examples using the official Foxbit SDK for REST v3, which simplifies integration and improves code reliability:
+
+Available for the following languages:
+- [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk/javascript)
+- [TypeScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk/typescript)
+
+The official SDK provides:
+
+- **Full TypeScript typing** support
+- **Automatic error handling**
+- **Built-in parameter validation**
+- **Simple installation** via npm: `npm install @foxbit-group/rest-api`
+
+**We recommend using the official SDK** for new projects as it offers better developer experience and greater stability.
+
+For more information about the SDK, please refer to the [SDK documentation](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk).
+
 ### Currently Implemented Examples
 
 - [REST v3](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3)
-    - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/javascript)
-    - [TypeScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/typescript)
-    - [GoLang](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/go)
-    - [Python](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/python)
-    - [Ruby](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/ruby)
-    - [PHP](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/php)
-    - [DotNet C#](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/dotnet)
-    - [Java](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/java)
-    - [C++](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/cpp)
-    - [Dart](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/dart)
-    - [Kotlin](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/kotlin)
-    - [Swift](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/swift)
+  - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/javascript)
+  - [TypeScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/typescript)
+  - [GoLang](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/go)
+  - [Python](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/python)
+  - [Ruby](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/ruby)
+  - [PHP](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/php)
+  - [DotNet C#](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/dotnet)
+  - [Java](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/java)
+  - [C++](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/cpp)
+  - [Dart](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/dart)
+  - [Kotlin](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/kotlin)
+  - [Swift](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/swift)
 - [WebSocket v2](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2)
-    - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2/javascript)
+  - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2/javascript)
 
 ## Getting Started
 
