@@ -14,13 +14,15 @@ const logPath = path.join(process.cwd(), 'logs', logFileName);
 function writeLog(message) {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] ${message}\n`;
-  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  if (!fs.existsSync(path.dirname(logPath))) {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  }
   fs.appendFileSync(logPath, logEntry);
 }
 
 console.log(`📝 Logs will be saved to: ${logFileName}`);
 console.log('🔗 To follow logs in real time, open another terminal and run:');
-console.log(`   tail -f ${logFileName}`);
+console.log(`   tail -f logs/${logFileName}`);
 console.log('─'.repeat(60));
 
 function sendMessage(message) {
@@ -45,9 +47,12 @@ wss.on('open', async () => {
     );
   }, 20_000);
 
-  while (true) {
-    await handleChannelChoice();
+  async function runMenuLoop() {
+    while (wss.readyState === ws.OPEN) {
+      await handleChannelChoice();
+    }
   }
+  runMenuLoop();
 });
 
 wss.on('message', async (data) => {
