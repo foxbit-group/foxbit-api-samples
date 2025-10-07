@@ -100,7 +100,7 @@ function unsubscribeMessage(channel) {
 
 async function handleChannelChoice() {
   const selectedAction = await select({
-    message: 'Select an action (subscribe/unsubscribe):',
+    message: 'Select an action:',
     choices: [
       { name: 'Subscribe', value: 'subscribe' },
       { name: 'Unsubscribe', value: 'unsubscribe' },
