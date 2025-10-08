@@ -31,9 +31,9 @@ This WebSocket v3 example provides:
 - **Interactive Menu**: Choose between different data channels using an interactive command-line menu
 - **Channel Subscriptions**:
   - **Trades**: Real-time trade executions
-  - **Order Book**: Live order book updates (1000 levels)
+  - **Order Book**: Live order book updates (100 miliseconds interval)
   - **Ticker**: 24h market statistics
-  - **Candles**: OHLCV candlestick data (60-minute intervals)
+  - **Candles**: OHLCV candlestick data (60-seconds interval)
 - **Automatic Ping/Pong**: Maintains connection with periodic ping messages
 - **Comprehensive Logging**: All WebSocket messages are logged to timestamped files in the `logs/` directory
 - **Real-time Log Monitoring**: Follow logs in real-time using `tail -f logs/[filename]`
@@ -45,7 +45,7 @@ The example demonstrates subscription to the following channels for the BTC/BRL 
 - `trades` - Real-time trade executions
 - `orderbook-100` - Order book updates with 100 miliseconds intervals
 - `ticker` - 24-hour market statistics
-- `candles-60` - Candlestick data with 60-seconds intervals
+- `candles-60` - Candlestick data with 60-seconds interval
 
 ## Log Files
 
