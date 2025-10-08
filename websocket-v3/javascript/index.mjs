@@ -126,7 +126,7 @@ async function handleChannelChoice() {
         { name: 'Subscribe Trades', value: subscribeMessage('trades') },
         {
           name: 'Subscribe Order Book',
-          value: subscribeMessage('orderbook-1000'),
+          value: subscribeMessage('orderbook-100'),
         },
         { name: 'Subscribe Ticker', value: subscribeMessage('ticker') },
         { name: 'Subscribe Candles', value: subscribeMessage('candles-60') },
@@ -145,7 +145,7 @@ async function handleChannelChoice() {
         { name: 'Unsubscribe Trades', value: unsubscribeMessage('trades') },
         {
           name: 'Unsubscribe Order Book',
-          value: unsubscribeMessage('orderbook-1000'),
+          value: unsubscribeMessage('orderbook-100'),
         },
         { name: 'Unsubscribe Ticker', value: unsubscribeMessage('ticker') },
         {
