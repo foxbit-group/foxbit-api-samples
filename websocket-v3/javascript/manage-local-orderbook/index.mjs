@@ -64,6 +64,21 @@ class Manager {
           ],
         })
       );
+
+      setInterval(() => {
+        if (this.wss && this.wss.readyState === ws.OPEN) {
+          this.wss.send(
+            JSON.stringify({
+              type: 'message',
+              params: [
+                {
+                  channel: 'ping',
+                },
+              ],
+            })
+          );
+        }
+      }, 20_000);
     });
 
     this.wss.on('message', (data) => {
