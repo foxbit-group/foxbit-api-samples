@@ -70,7 +70,7 @@ class Manager {
       const message = JSON.parse(data);
       console.log('📨 Message received:', message);
 
-      if (message.event == 'snapshot') {
+      if (message.event === 'snapshot') {
         console.log('📊 Order book snapshot:', message.data);
         this.orderBook = {
           sequence_id: message.data.sequence_id,
@@ -78,16 +78,19 @@ class Manager {
           bids: BTreeDesc(message.data.bids),
         };
         console.log('✅ Order book initialized with snapshot');
-      } else if (message.event == 'update') {
+        return;
+      }
+
+      if (message.event === 'update') {
         if (
-          this.orderBook.sequence_id + 1 == message.data.first_sequence_id ||
-          message.data.first_sequence_id == 1
+          this.orderBook.sequence_id + 1 === message.data.first_sequence_id ||
+          message.data.first_sequence_id === 1
         ) {
           console.log('🔄 Order book update:', message.data);
           this.orderBook.sequence_id = message.data.last_sequence_id;
 
           message.data.asks.forEach(([price, volume]) => {
-            if (+volume == 0) {
+            if (+volume === 0) {
               this.orderBook.asks.delete(price);
             } else {
               this.orderBook.asks.set(price, volume);
@@ -95,7 +98,7 @@ class Manager {
           });
 
           message.data.bids.forEach(([price, volume]) => {
-            if (+volume == 0) {
+            if (+volume === 0) {
               this.orderBook.bids.delete(price);
             } else {
               this.orderBook.bids.set(price, volume);
@@ -103,25 +106,26 @@ class Manager {
           });
 
           console.log('✅ Order book updated');
-        } else {
-          console.warn('⚠️ Sequence ID mismatch, requesting new snapshot...', {
-            actual: this.orderBook.sequence_id,
-            received: message.data.first_sequence_id,
-          });
-
-          this.wss.send(
-            JSON.stringify({
-              type: 'subscribe',
-              params: [
-                {
-                  channel: `orderbook-${this.interval}`,
-                  market_symbol: this.market_symbol,
-                  snapshot: true,
-                },
-              ],
-            })
-          );
+          return;
         }
+
+        console.warn('⚠️ Sequence ID mismatch, requesting new snapshot...', {
+          actual: this.orderBook.sequence_id,
+          received: message.data.first_sequence_id,
+        });
+
+        this.wss.send(
+          JSON.stringify({
+            type: 'subscribe',
+            params: [
+              {
+                channel: `orderbook-${this.interval}`,
+                market_symbol: this.market_symbol,
+                snapshot: true,
+              },
+            ],
+          })
+        );
       }
     });
   }
@@ -154,7 +158,7 @@ server.listen(3000, () => {
 
   select({
     message: 'Select market symbol to manage order book:',
-    choices: ['btcusd', 'btcbrl', 'ethbrl', 'ethusd'],
+    choices: ['btcusdt', 'btcbrl', 'ethbrl', 'ethusd'],
   }).then((market_symbol) => {
     select({
       message: 'Select an interval to orderbook updates (ms):',
