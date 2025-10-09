@@ -1,7 +1,7 @@
 {
   "name": "manage-local-orderbook",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "index.mjs",
   "scripts": {
     "start": "reset; node --no-warnings index.mjs"
   },
