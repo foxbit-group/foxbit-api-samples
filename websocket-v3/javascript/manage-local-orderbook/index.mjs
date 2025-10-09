@@ -157,7 +157,7 @@ server.listen(3000, () => {
     choices: ['btcusd', 'btcbrl', 'ethbrl', 'ethusd'],
   }).then((market_symbol) => {
     select({
-      message: 'Select a interval to orderbook updates (ms):',
+      message: 'Select an interval to orderbook updates (ms):',
       choices: ['100', '250', '500', '1000'],
     }).then((interval) => {
       instance = new Manager(
