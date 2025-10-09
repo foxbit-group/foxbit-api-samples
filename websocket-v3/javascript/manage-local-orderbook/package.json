@@ -1,0 +1,17 @@
+{
+  "name": "manage-local-orderbook",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "reset; node --no-warnings index.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.6",
+    "sorted-btree": "^1.8.1",
+    "ws": "^8.18.3"
+  }
+}
