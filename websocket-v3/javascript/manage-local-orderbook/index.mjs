@@ -22,9 +22,11 @@ class Manager {
 
   constructor(
     address = 'wss://api.foxbit.com.br/ws/v3/public',
-    market_symbol = 'btcbrl'
+    market_symbol = 'btcbrl',
+    interval = '250'
   ) {
     this.market_symbol = market_symbol;
+    this.interval = interval;
     this.address = address;
     this.setupWebSocket();
   }
@@ -55,7 +57,7 @@ class Manager {
           type: 'subscribe',
           params: [
             {
-              channel: 'orderbook',
+              channel: `orderbook-${this.interval}`,
               market_symbol: this.market_symbol,
               snapshot: true,
             },
@@ -112,7 +114,7 @@ class Manager {
               type: 'subscribe',
               params: [
                 {
-                  channel: 'orderbook',
+                  channel: `orderbook-${this.interval}`,
                   market_symbol: this.market_symbol,
                   snapshot: true,
                 },
@@ -125,14 +127,16 @@ class Manager {
   }
 }
 
-const instance = new Manager();
+let instance;
+
 const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  if (req.url === '/orderbook' && req.method === 'GET') {
+  if (req.url === '/orderbook' && req.method === 'GET' && instance) {
     const orderBookData = {
       market_symbol: instance.market_symbol,
+      subscribe_interval: instance.interval,
       sequence_id: instance.orderBook.sequence_id,
       asks: instance.orderBook.asks.toArray(99),
       bids: instance.orderBook.bids.toArray(99),
@@ -147,4 +151,20 @@ const server = http.createServer((req, res) => {
 
 server.listen(3000, () => {
   console.log('🚀 HTTP server running on http://localhost:3000/orderbook');
+
+  select({
+    message: 'Select market symbol to manage order book:',
+    choices: ['btcusd', 'btcbrl', 'ethbrl', 'ethusd'],
+  }).then((market_symbol) => {
+    select({
+      message: 'Select a interval to orderbook updates (ms):',
+      choices: ['100', '250', '500', '1000'],
+    }).then((interval) => {
+      instance = new Manager(
+        'wss://api.foxbit.com.br/ws/v3/public',
+        market_symbol,
+        interval
+      );
+    });
+  });
 });
