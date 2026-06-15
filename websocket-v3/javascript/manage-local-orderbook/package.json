@@ -12,6 +12,6 @@
   "dependencies": {
     "@inquirer/prompts": "^7.8.6",
     "sorted-btree": "^1.8.1",
-    "ws": "^8.18.3"
+    "ws": "^8.21.0"
   }
 }
