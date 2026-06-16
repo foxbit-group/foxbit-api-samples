@@ -11,6 +11,6 @@
   "dependencies": {
     "@inquirer/prompts": "^7.5.0",
     "crypto-js": "^4.2.0",
-    "ws": "^8.18.2"
+    "ws": "^8.21.0"
   }
 }

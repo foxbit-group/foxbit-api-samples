@@ -11,6 +11,6 @@
   "description": "",
   "dependencies": {
     "@inquirer/prompts": "^7.8.6",
-    "ws": "^8.18.3"
+    "ws": "^8.21.0"
   }
 }
