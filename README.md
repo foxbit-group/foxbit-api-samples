@@ -51,6 +51,8 @@ For more information about the SDK, please refer to the [SDK documentation](http
   - [Swift](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3/swift)
 - [WebSocket v2](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2)
   - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v2/javascript)
+- [WebSocket v3](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v3)
+  - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/websocket-v3/javascript)
 
 ## Getting Started
 
@@ -67,7 +69,9 @@ export FOXBIT_API_KEY=your_api_key_here
 export FOXBIT_API_SECRET=your_api_secret_here
 ```
 
-Make sure to replace `your_api_key_here` and `your_api_secret_here` with the actual values provided by Foxbit.
+Make sure to replace `your_api_key_here` and `your_api_secret_here` with the actual values provided by Foxbit. Alternatively, keep them in a `.env` file (already git-ignored) and pass `--env-file .env` to `docker run`.
+
+Every REST v3 example ships a pinned `Dockerfile`, so Docker is all you need to run any of them. See the [REST v3 guide](rest-v3/README.md) for the common example flow, how request signing works (including the two gotchas behind most `Invalid signature` errors), and troubleshooting tips.
 
 ## Support
 

@@ -1,10 +1,8 @@
 pluginManagement {
     repositories {
-        gradlePluginPortal()
         mavenCentral()
+        gradlePluginPortal()
     }
 }
-dependencyResolutionManagement {
-    repositories { mavenCentral() }
-}
-rootProject.name = "foxbit-kotlin-examples"
+
+rootProject.name = "foxbit-rest-v3-kotlin"

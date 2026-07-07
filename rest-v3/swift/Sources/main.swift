@@ -1,222 +1,190 @@
+// Foxbit REST API v3 — Swift example.
+//
+// Flow: fetch account info, read the public order book, place a LIMIT BUY
+// order far below the market, list active orders, then cancel the order.
+//
+// Docs: https://docs.foxbit.com.br/rest/v3/
+
 import Foundation
-import AsyncHTTPClient
-import NIOCore
-import NIOFoundationCompat
-import Crypto
-import NIOHTTP1
+#if canImport(FoundationNetworking)
+import FoundationNetworking // URLSession on Linux
+#endif
+import Crypto // HMAC-SHA256 on Linux (CryptoKit is Apple-platform only)
 
-let apiBaseUrl = "https://api.foxbit.com.br"
-
-struct FoxbitOrder: Codable {
-    let id: Int
+struct ExampleError: Error, CustomStringConvertible {
+    let description: String
+    init(_ description: String) { self.description = description }
 }
 
-struct APIError: Error {
-    let message: String
+// RFC 3986 percent-encoding: only unreserved characters (A-Z a-z 0-9 - . _ ~)
+// are kept as-is; everything else is encoded (space -> %20, never "+").
+func percentEncode(_ value: String) -> String {
+    let unreserved = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+    )
+    return value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? value
 }
 
-func canonicalQueryString(_ params: [String: String]) -> String {
-    return params
-        .map { "\($0.key)=\($0.value)" }
-        .sorted()
-        .joined(separator: "&")
+// Query string with RAW (decoded) values — used ONLY in the signature pre-hash.
+func decodedQuery(_ params: [(String, String)]) -> String {
+    params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
 }
 
+// Percent-encoded query string (RFC 3986) — used ONLY in the request URL.
+// Both strings are built from the same ordered params, so they always match.
+func encodedQuery(_ params: [(String, String)]) -> String {
+    params.map { "\(percentEncode($0.0))=\(percentEncode($0.1))" }.joined(separator: "&")
+}
+
+// HMAC-SHA256 (hex) over: timestamp + method + path + decodedQuery + rawBody.
+// Gotcha 1: the query string goes DECODED into the pre-hash, while the URL
+//           carries it percent-encoded.
+// Gotcha 2: rawBody must be byte-for-byte the string sent on the wire —
+//           serialize the JSON once and sign that exact string.
 func sign(
+    secret: String,
+    timestamp: String,
     method: String,
     path: String,
-    queryString: String = "",
-    body: [String: Any]? = nil
-) -> (signature: String, timestamp: String) {
-    let timestamp = String(Int(Date().timeIntervalSince1970 * 1000))
-    
-    let rawBody: String = {
-        guard let body = body,
-              let data = try? JSONSerialization.data(withJSONObject: body),
-              let s = String(data: data, encoding: .utf8)
-        else { return "" }
-        return s
-    }()
-    
-    let preHash = "\(timestamp)\(method)\(path)\(queryString)\(rawBody)"
-    print("PreHash:", preHash)
-    
-    guard let secret = ProcessInfo.processInfo.environment["FOXBIT_API_SECRET"] else {
-        fatalError("FOXBIT_API_SECRET not set")
-    }
+    decodedQuery: String,
+    rawBody: String
+) -> (preHash: String, signature: String) {
+    let preHash = timestamp + method + path + decodedQuery + rawBody
     let key = SymmetricKey(data: Data(secret.utf8))
-    let signature = HMAC<SHA256>
-        .authenticationCode(for: Data(preHash.utf8), using: key)
-        .map { String(format: "%02hhx", $0) }
-        .joined()
-    print("Signature:", signature)
-    
-    return (signature, timestamp)
+    let mac = HMAC<SHA256>.authenticationCode(for: Data(preHash.utf8), using: key)
+    let signature = mac.map { String(format: "%02x", $0) }.joined()
+    return (preHash, signature)
 }
 
 func request(
+    apiKey: String,
+    apiSecret: String,
     method: String,
     path: String,
-    params: [String: String]? = nil,
-    body: [String: Any]? = nil
+    params: [(String, String)] = [],
+    rawBody: String? = nil,
+    authenticated: Bool = true
 ) async throws -> Data {
-    let qs = params.map(canonicalQueryString) ?? ""
-    let (signature, timestamp) = sign(method: method, path: path, queryString: qs, body: body)
-    
-    var fullUrl = apiBaseUrl + path
-    if !qs.isEmpty {
-        fullUrl += "?\(qs)"
+    let baseURL = "https://api.foxbit.com.br"
+
+    print(String(repeating: "-", count: 50))
+    print("\(method) \(path)")
+
+    var urlString = baseURL + path
+    let query = encodedQuery(params)
+    if !query.isEmpty { urlString += "?" + query }
+    guard let url = URL(string: urlString) else {
+        throw ExampleError("Invalid URL: \(urlString)")
     }
-    
-    var req = try HTTPClient.Request(url: fullUrl, method: HTTPMethod(rawValue: method))
-    req.headers.add(name: "X-FB-ACCESS-KEY", value: ProcessInfo.processInfo.environment["FOXBIT_API_KEY"] ?? "")
-    req.headers.add(name: "X-FB-ACCESS-TIMESTAMP", value: timestamp)
-    req.headers.add(name: "X-FB-ACCESS-SIGNATURE", value: signature)
-    req.headers.add(name: "Content-Type", value: "application/json")
-    
-    if let body = body {
-        req.body = .data(try JSONSerialization.data(withJSONObject: body))
+
+    var req = URLRequest(url: url)
+    req.httpMethod = method
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    if let rawBody {
+        req.httpBody = Data(rawBody.utf8) // exactly the string that gets signed
     }
-    
-    let client = HTTPClient(eventLoopGroupProvider: .createNew)
-    defer { try? client.syncShutdown() }
-    
-    let response = try await client.execute(request: req).get()
-    guard let buffer = response.body else {
-        throw APIError(message: "Empty response")
+
+    if authenticated {
+        let timestamp = String(Int64(Date().timeIntervalSince1970 * 1000))
+        let (preHash, signature) = sign(
+            secret: apiSecret,
+            timestamp: timestamp,
+            method: method,
+            path: path,
+            decodedQuery: decodedQuery(params),
+            rawBody: rawBody ?? ""
+        )
+        print("PreHash: \(preHash)")
+        req.setValue(apiKey, forHTTPHeaderField: "X-FB-ACCESS-KEY")
+        req.setValue(timestamp, forHTTPHeaderField: "X-FB-ACCESS-TIMESTAMP")
+        req.setValue(signature, forHTTPHeaderField: "X-FB-ACCESS-SIGNATURE")
     }
-    return Data(buffer: buffer)
+
+    let (data, response) = try await URLSession.shared.data(for: req)
+    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+    print("Response (\(status)): \(String(data: data, encoding: .utf8) ?? "")")
+    guard (200..<300).contains(status) else {
+        throw ExampleError("HTTP \(status) on \(method) \(path)")
+    }
+    return data
 }
 
-@main
-struct FoxbitExamples {
-    static func main() async {
-        print("FOXBIT_API_KEY:", ProcessInfo.processInfo.environment["FOXBIT_API_KEY"] ?? "")
+// Fail fast if credentials are missing. Never print them.
+let env = ProcessInfo.processInfo.environment
+guard let apiKey = env["FOXBIT_API_KEY"], !apiKey.isEmpty,
+      let apiSecret = env["FOXBIT_API_SECRET"], !apiSecret.isEmpty else {
+    FileHandle.standardError.write(
+        Data("Error: FOXBIT_API_KEY and FOXBIT_API_SECRET environment variables must be set.\n".utf8)
+    )
+    exit(1)
+}
 
-        // Get the user information
-        do {
-            let meResponse = try await request(method: "GET", path: "/rest/v3/me")
-            print("Response:", String(data: meResponse, encoding: .utf8) ?? "")
-        } catch {
-            print("Failed to process request.")
-            return
-        }
+do {
+    // 1. Account info — authenticated request without params.
+    _ = try await request(apiKey: apiKey, apiSecret: apiSecret, method: "GET", path: "/rest/v3/me")
 
-        // Get current price
-        let marketSymbol = "btcbrl"
-        let tickerData: Data
-        do {
-            tickerData = try await request(
-                method: "GET",
-                path: "/rest/v3/markets/\(marketSymbol)/ticker/24hr"
-            )
-            // Print the first-level response like in TypeScript
-            print("Response:", String(data: tickerData, encoding: .utf8) ?? "")
-        } catch {
-            print("Failed to process request.")
-            return
-        }
-
-        // Request to create a new order
-        let targetPrice: String
-        do {
-            // Parse best.bid.price (matching the TypeScript reference)
-            guard
-                let json = try JSONSerialization.jsonObject(with: tickerData) as? [String: Any],
-                let dataArr = json["data"] as? [[String: Any]],
-                let first = dataArr.first,
-                let best = first["best"] as? [String: Any],
-                let bid = best["bid"] as? [String: Any],
-                let priceStr = bid["price"] as? String,
-                let lastPrice = Double(priceStr)
-            else {
-                print("Failed to process request.")
-                return
-            }
-            let target = lastPrice * 0.9 // Calculate target price: 10% below the best bid price
-            targetPrice = String(format: "%.8f", target)
-        } catch {
-            print("Failed to process request.")
-            return
-        }
-
-        let orderData: Data
-        do {
-            let order: [String: Any] = [
-                "market_symbol": marketSymbol,
-                "side": "BUY",
-                "type": "LIMIT",
-                "price": targetPrice,
-                "quantity": "0.0001"
-            ]
-            let orderResponse = try await request(
-                method: "POST",
-                path: "/rest/v3/orders",
-                body: order
-            )
-            orderData = orderResponse
-            print("Response:", String(data: orderData, encoding: .utf8) ?? "")
-        } catch {
-            print("Failed to process request.")
-            return
-        }
-
-        // Sleep 2 seconds (simulate await sleep(2000))
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        // Get active orders
-        do {
-            let oneHourAgoISO = ISO8601DateFormatter().string(from: Date(timeIntervalSinceNow: -3600))
-            let ordersParams: [String: String] = [
-                "market_symbol": marketSymbol,
-                "state": "ACTIVE",
-                "start_time": oneHourAgoISO // Optional: included to test signature behavior with special chars
-            ]
-            let ordersResponse = try await request(
-                method: "GET",
-                path: "/rest/v3/orders",
-                params: ordersParams
-            )
-            print("Response:", String(data: ordersResponse, encoding: .utf8) ?? "")
-        } catch {
-            print("Failed to process request.")
-            return
-        }
-
-        // Request to cancel the order
-        do {
-            // Extract order id (supports string or int id)
-            let orderId: String
-            if
-                let json = try? JSONSerialization.jsonObject(with: orderData) as? [String: Any],
-                let rawId = json["id"]
-            {
-                if let intId = rawId as? Int {
-                    orderId = String(intId)
-                } else if let strId = rawId as? String {
-                    orderId = strId
-                } else {
-                    print("Failed to process request.")
-                    return
-                }
-            } else {
-                print("Failed to process request.")
-                return
-            }
-
-            let orderToCancel: [String: Any] = [
-                "type": "ID",
-                "id": orderId
-            ]
-            let cancelResponse = try await request(
-                method: "PUT",
-                path: "/rest/v3/orders/cancel",
-                body: orderToCancel
-            )
-            print("Response:", String(data: cancelResponse, encoding: .utf8) ?? "")
-        } catch {
-            print("Failed to process request.")
-            return
-        }
+    // 2. Order book — public endpoint, no authentication headers needed.
+    let orderBookData = try await request(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        method: "GET",
+        path: "/rest/v3/markets/btcbrl/orderbook",
+        params: [("depth", "1")],
+        authenticated: false
+    )
+    guard let orderBook = try JSONSerialization.jsonObject(with: orderBookData) as? [String: Any],
+          let bids = orderBook["bids"] as? [[Any]],
+          let bestBidString = bids.first?.first as? String,
+          let bestBid = Double(bestBidString) else {
+        throw ExampleError("Could not read best bid from order book response")
     }
+
+    // 3. Price at 50% of the best bid: inside the accepted price band but far
+    //    from ever executing. The API rejects absurd prices (e.g. 10.0) with
+    //    422. btcbrl has price_increment 1.0, so format it as an integer.
+    let price = String(Int((bestBid * 0.5).rounded(.down)))
+
+    // 4. Create the order. The body is serialized ONCE; the same string is
+    //    signed and sent.
+    let orderBody =
+        #"{"market_symbol":"btcbrl","side":"BUY","type":"LIMIT","price":"\#(price)","quantity":"0.0001"}"#
+    let orderData = try await request(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        method: "POST",
+        path: "/rest/v3/orders",
+        rawBody: orderBody
+    )
+    guard let order = try JSONSerialization.jsonObject(with: orderData) as? [String: Any],
+          let orderId = order["id"] as? String else {
+        throw ExampleError("Could not read order id from create-order response")
+    }
+
+    // 5. Give the matching engine a moment before listing.
+    try await Task.sleep(nanoseconds: 2_000_000_000)
+
+    // 6. List active orders — the order created above should be present.
+    _ = try await request(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        method: "GET",
+        path: "/rest/v3/orders",
+        params: [("market_symbol", "btcbrl"), ("state", "ACTIVE")]
+    )
+
+    // 7. Cancel the order created in step 4.
+    let cancelBody = #"{"type":"ID","id":"\#(orderId)"}"#
+    _ = try await request(
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        method: "PUT",
+        path: "/rest/v3/orders/cancel",
+        rawBody: cancelBody
+    )
+
+    print(String(repeating: "-", count: 50))
+    print("Done: order \(orderId) created and cancelled.")
+} catch {
+    FileHandle.standardError.write(Data("Error: \(error)\n".utf8))
+    exit(1)
 }

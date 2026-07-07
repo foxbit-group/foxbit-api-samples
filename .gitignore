@@ -59,3 +59,11 @@ typings/
 
 # next.js build output
 .next
+
+# Build artifacts from the REST v3 examples (compiled locally, never committed)
+.build/
+.dart_tool/
+target/
+.gradle/
+rest-v3/dotnet/bin/
+rest-v3/dotnet/obj/

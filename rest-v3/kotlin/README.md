@@ -1,28 +1,61 @@
-# Foxbit API REST v3 Kotlin Examples
+# Foxbit REST API v3 — Kotlin Example
 
-Here is the Kotlin examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using Kotlin. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, didactic example of integrating with the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/) in Kotlin, using only `java.net.http.HttpClient`, `javax.crypto` and a small JSON library (`org.json`).
 
-## Prerequisites
+It runs the following flow:
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+1. `GET /rest/v3/me` — fetch account information (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the best bid (public endpoint, no authentication).
+3. Compute a limit price at 50% of the best bid, rounded down to an integer.
+4. `POST /rest/v3/orders` — create a LIMIT BUY order for 0.0001 BTC.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders (the new order shows up).
+7. `PUT /rest/v3/orders/cancel` — cancel the order by id.
 
-- Docker
+> **Warning:** this example creates a REAL order on your account (LIMIT BUY of 0.0001 BTC at 50% of the market price — inside the accepted price band but far too low to ever execute) and cancels it right after.
 
-## Getting Started
+## Requirements
 
-1. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-2. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+- Docker (recommended), or
+- JDK 21+ and Gradle 8.14+ to run natively.
+
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-docker build -t foxbit-kotlin-examples .
-
-docker run --rm \
-  -e FOXBIT_API_KEY=$FOXBIT_API_KEY \
-  -e FOXBIT_API_SECRET=$FOXBIT_API_SECRET \
-  foxbit-kotlin-examples
+export FOXBIT_API_KEY="your_api_key"
+export FOXBIT_API_SECRET="your_api_secret"
 ```
 
-## Additional Notes
+Alternatively, put both variables in a `.env` file and pass it to Docker with `--env-file .env`.
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-kotlin .
+
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-kotlin
+# or: docker run --rm --env-file .env foxbit-sample-kotlin
+```
+
+## Run natively
+
+```bash
+gradle run
+```
+
+## How request signing works
+
+Every authenticated request carries three headers: `X-FB-ACCESS-KEY` (the API key), `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The signature is the lowercase hex HMAC-SHA256 of:
+
+```
+timestamp + method + path + queryString + rawBody
+```
+
+Two gotchas trip most integrations:
+
+1. **The query string is signed DECODED, but sent percent-encoded.** The pre-hash uses raw values (`market_symbol=btc brl`), while the URL must carry them RFC 3986 percent-encoded (`market_symbol=btc%20brl`, space is `%20`, never `+`). Build both forms from the same ordered parameter list so they cannot diverge.
+2. **The body is signed exactly as the bytes sent.** Serialize the JSON body once and use that same string for both the signature and the request payload — signing one formatting and sending another yields a 401.
+
+See the [official documentation](https://docs.foxbit.com.br/rest/v3/) for details.

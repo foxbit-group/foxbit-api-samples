@@ -1,16 +1,23 @@
 plugins {
-    kotlin("jvm") version "1.9.22"
+    kotlin("jvm") version "2.2.21"
     application
 }
 
-group = "foxbit"
+group = "br.com.foxbit"
 version = "1.0.0"
 
-repositories { mavenCentral() }
-
-dependencies {
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
+repositories {
+    mavenCentral()
 }
 
-application { mainClass.set("MainKt") }
+dependencies {
+    implementation("org.json:json:20250517")
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+application {
+    mainClass.set("MainKt")
+}

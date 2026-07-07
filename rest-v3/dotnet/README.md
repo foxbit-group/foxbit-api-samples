@@ -1,29 +1,65 @@
-# Foxbit API REST v3 .NET C# Examples
+# Foxbit REST API v3 — C# (.NET) Example
 
-Here is the .NET C# examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using C#. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, dependency-free C# example of the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/), using only the .NET base class library (`HttpClient`, `System.Text.Json`, `HMACSHA256`).
 
-## Prerequisites
+It runs the following flow:
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+1. `GET /rest/v3/me` — check your credentials (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the best bid (public, no authentication).
+3. Compute a limit price at 50% of the best bid, rounded down to a whole number.
+4. `POST /rest/v3/orders` — place a LIMIT BUY order for 0.0001 BTC at that price.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders (the new order shows up).
+7. `PUT /rest/v3/orders/cancel` — cancel the order by its id.
 
-- .NET SDK: These examples are written for C#, ensure you have the latest .NET SDK installed.
+> **Warning:** this example places a REAL order on your account — a LIMIT BUY of 0.0001 BTC at 50% of the current market price. That price is inside the exchange's accepted price band but far too low to ever execute, and the order is cancelled at the end of the flow.
 
-## Getting Started
+## Requirements
 
-1. **Install Dependencies**: Navigate to the DotNet examples directory in your terminal and install the necessary dependencies.
+- Docker (recommended), or
+- .NET SDK 10.0+ to run natively.
+
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-dotnet restore dotnet.csproj
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-2. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-3. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+Alternatively, put both variables in a `.env` file and pass it to Docker with `--env-file .env`.
+
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-dotnet .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-dotnet
+```
+
+Or, using a `.env` file:
+
+```bash
+docker run --rm --env-file .env foxbit-sample-dotnet
+```
+
+## Run natively
 
 ```bash
 dotnet run
 ```
 
-## Additional Notes
+## How request signing works
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+Every authenticated request carries three headers: `X-FB-ACCESS-KEY` (your API key), `X-FB-ACCESS-TIMESTAMP` (Unix time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The signature is an HMAC-SHA256 (lowercase hex) of:
+
+```
+timestamp + method + path + queryString + rawBody
+```
+
+Two details are easy to get wrong:
+
+1. **The query string goes into the pre-hash DECODED.** Sign the raw values (`market_symbol=btc brl`), but send them percent-encoded per RFC 3986 in the URL (`market_symbol=btc%20brl`, space as `%20`, never `+`). Signing the encoded form yields a 401.
+2. **The body is signed exactly as sent.** Serialize the JSON body once and use that same string for both the signature and the request content. Serializing twice (or letting the HTTP client re-serialize) can change the bytes and yields a 401.
+
+See the full API documentation at <https://docs.foxbit.com.br/rest/v3/>.

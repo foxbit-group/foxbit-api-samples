@@ -1,19 +1,17 @@
 {
-  "name": "javascript",
+  "name": "foxbit-rest-v3-sdk-javascript-example",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "description": "Foxbit REST API v3 example using the official JavaScript SDK (@foxbit-group/rest-api)",
+  "type": "commonjs",
   "main": "examples.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node examples.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@foxbit-group/rest-api": "^0.1.3"
-  },
-  "overrides": {
-    "axios": "^1.16.0",
-    "follow-redirects": "^1.16.0",
-    "form-data": "^4.0.6"
+    "@foxbit-group/rest-api": "0.1.3"
   }
 }

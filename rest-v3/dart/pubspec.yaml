@@ -1,10 +1,10 @@
-name: foxbit_dart_examples
-description: A simple Dart example for Foxbit REST v3 API integration.
+name: foxbit_rest_v3_example
+description: Foxbit REST API v3 integration example in Dart.
 version: 1.0.0
+publish_to: none
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
-  http: ^1.3.0
-  crypto: ^3.0.2
+  crypto: 3.0.7

@@ -1,29 +1,73 @@
-# Foxbit API REST v3 Ruby Examples
+# Foxbit REST API v3 — Ruby Example
 
-Here is the Ruby examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using Ruby. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, dependency-free example (Ruby standard library only) of how to authenticate and trade with the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/).
 
-## Prerequisites
+The script runs the following flow:
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+1. `GET /rest/v3/me` — fetch account information (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the order book (public, no authentication).
+3. Compute an order price at 50% of the best bid.
+4. `POST /rest/v3/orders` — create a LIMIT BUY order (0.0001 BTC).
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
+7. `PUT /rest/v3/orders/cancel` — cancel the created order.
 
-- Ruby: These examples are written for Ruby, ensure you have the latest stable version installed.
+> **Warning:** this example creates a REAL order on your account — a LIMIT BUY of 0.0001 BTC priced at 50% of the current market. That price is inside the accepted price band but far too low to ever execute, and the order is cancelled at the end of the flow.
 
-## Getting Started
+## Requirements
 
-1. **Install Dependencies**: Navigate to the Ruby examples directory in your terminal and run `bundle install` to install the necessary dependencies.
+- [Docker](https://www.docker.com/) (recommended), or
+- Ruby >= 3.2 (uses `CGI.escapeURIComponent`) to run natively.
+
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-bundle install
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-2. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-3. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+Alternatively, put both variables in a `.env` file and pass it to Docker with `--env-file .env`.
+
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-ruby .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-ruby
+```
+
+Or, using a `.env` file:
+
+```bash
+docker run --rm --env-file .env foxbit-sample-ruby
+```
+
+## Run natively
 
 ```bash
 ruby examples.rb
 ```
 
-## Additional Notes
+## How request signing works
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+Every authenticated request is signed with HMAC-SHA256 (hex, lowercase) using your API secret over the string:
+
+```
+preHash = timestamp + method + path + queryString + rawBody
+```
+
+- `timestamp`: UNIX time in **milliseconds** — the same value sent in the `X-FB-ACCESS-TIMESTAMP` header.
+- `method`: uppercase HTTP verb (`GET`, `POST`, ...).
+- `path`: e.g. `/rest/v3/orders` (no host, no query string).
+- `queryString`: `key=value&key2=value2`, empty if there are no params.
+- `rawBody`: the JSON request body as sent, empty if there is no body.
+
+The signature goes in the `X-FB-ACCESS-SIGNATURE` header, alongside `X-FB-ACCESS-KEY` (your API key) and `X-FB-ACCESS-TIMESTAMP`.
+
+Two gotchas that cause most `401` errors:
+
+1. **The query string enters the prehash with decoded (raw) values**, while the URL itself uses RFC 3986 percent-encoding (space = `%20`). Sign `market_symbol=btc brl`, send `market_symbol=btc%20brl`. Both must use the same parameter order.
+2. **The body is verified against the exact bytes sent.** Serialize the JSON body once, sign that string and send that same string — never re-serialize.
+
+See the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

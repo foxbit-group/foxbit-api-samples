@@ -1,1 +1,2 @@
-foxbit-api-samples
+.venv/
+__pycache__/

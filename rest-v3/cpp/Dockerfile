@@ -1,34 +1,29 @@
-FROM debian:bookworm AS builder
+FROM debian:13.2 AS build
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        curl \
-        ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        g++ \
         libcurl4-openssl-dev \
         libssl-dev \
-        && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
-RUN curl -sSL -o json.hpp \
-    https://raw.githubusercontent.com/nlohmann/json/v3.11.2/single_include/nlohmann/json.hpp
+# Pinned nlohmann/json single-header release.
+ADD https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp ./json.hpp
 
-COPY examples.cpp .
+COPY main.cpp .
 
-RUN g++ examples.cpp -o examples \
-        -std=c++17 -O2 -s -lcurl -lssl -lcrypto
+RUN g++ -std=c++17 -O2 -Wall -Wextra -o foxbit-example main.cpp -lcurl -lssl -lcrypto
 
-FROM debian:bookworm-slim
+FROM debian:13.2-slim
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        libcurl4 \
-        libssl3 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libcurl4t64 \
+        libssl3t64 \
         ca-certificates \
-        && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /src/examples .
+COPY --from=build /src/foxbit-example .
 
-ENTRYPOINT ["./examples"]
+CMD ["./foxbit-example"]
