@@ -1,44 +1,17 @@
-FROM swift:6.1.0-focal AS builder
+# Build stage: compile a release binary with the full Swift toolchain.
+FROM swift:6.2.4-noble AS build
+WORKDIR /app
 
-WORKDIR /src
-
-RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb \
- && mkdir -p /var/lib/apt/lists/partial
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libssl-dev \
-      libcurl4-openssl-dev \
-      pkg-config \
-      build-essential \
-      cmake \
-      git \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
-
-COPY Package.swift ./
+# Resolve pinned dependencies first so Docker caches this layer.
+COPY Package.swift Package.resolved ./
 RUN swift package resolve
 
-COPY . .
-RUN swift build -c release
+COPY Sources ./Sources
+RUN swift build -c release \
+ && cp "$(swift build -c release --show-bin-path)/FoxbitExample" /app/FoxbitExample
 
-FROM debian:bookworm-slim
-
-ENV DEBIAN_FRONTEND=noninteractive TZ=UTC
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libcurl4 \
-      libssl3 \
-      tzdata \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
+# Runtime stage: slim image with only the Swift runtime libraries.
+FROM swift:6.2.4-noble-slim
 WORKDIR /app
-COPY --from=builder /src/.build/x86_64-unknown-linux-gnu/release/FoxbitExamples .
-COPY --from=builder /usr/lib/swift/linux/lib*.so* /usr/lib/
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
-RUN chmod +x ./FoxbitExamples
-
-ENTRYPOINT ["./FoxbitExamples"]
+COPY --from=build /app/FoxbitExample .
+ENTRYPOINT ["./FoxbitExample"]

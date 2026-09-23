@@ -1,28 +1,64 @@
-# Foxbit API REST v3 Dart Examples
+# Foxbit REST API v3 — Dart Example
 
-Here is the Dart examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using Dart. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, self-contained example of integrating with the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/) in Dart. It runs the following flow:
 
-## Prerequisites
+1. `GET /rest/v3/me` — fetch account info (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the order book (public, no authentication).
+3. Compute a safe limit price: 50% of the best bid, rounded down to an integer (`btcbrl` has a price increment of `1.0`).
+4. `POST /rest/v3/orders` — place a limit buy order.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+> **Warning**: this example creates a REAL order (LIMIT BUY of 0.0001 BTC at 50% of the market price — inside the accepted price band, but far too low to ever execute) and cancels it right after.
 
-- Docker
+## Requirements
 
-## Getting Started
+- Docker (recommended), or
+- Dart SDK >= 3.5 to run natively.
 
-1. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-2. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-docker build -t foxbit-dart-examples .
-
-docker run --rm \
-  -e FOXBIT_API_KEY=$FOXBIT_API_KEY \
-  -e FOXBIT_API_SECRET=$FOXBIT_API_SECRET \
-  foxbit-dart-examples
+export FOXBIT_API_KEY=your_api_key
+export FOXBIT_API_SECRET=your_api_secret
 ```
 
-## Additional Notes
+Alternatively, put both variables in a `.env` file and pass `--env-file .env` to `docker run`.
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-dart .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-dart
+```
+
+Or, with a `.env` file:
+
+```bash
+docker run --rm --env-file .env foxbit-sample-dart
+```
+
+## Run natively
+
+```bash
+dart pub get
+dart run bin/main.dart
+```
+
+## How request signing works
+
+Every authenticated request carries three headers: `X-FB-ACCESS-KEY` (your API key), `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The signature is an HMAC-SHA256 (lowercase hex) of:
+
+```
+timestamp + HTTP method + path + query string + raw body
+```
+
+Two gotchas that cause most `401 Unauthorized` errors:
+
+1. **The query string goes DECODED into the pre-hash but percent-encoded (RFC 3986) into the URL.** Sign `market_symbol=btc brl`, send `market_symbol=btc%20brl`. Build both strings from the same ordered parameter list so the pairs and their order always match.
+2. **The body is signed exactly as the bytes sent on the wire.** Serialize the JSON once and use that same string for both the signature and the request body — serializing twice risks a formatting mismatch.
+
+Full documentation: <https://docs.foxbit.com.br/rest/v3/>

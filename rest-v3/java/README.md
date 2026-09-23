@@ -1,30 +1,75 @@
-# Foxbit API REST v3 Java Examples
+# Foxbit REST API v3 — Java Example
 
-Here is the Java examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using Java. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, self-contained Java example of how to authenticate and trade with the
+[Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/). It performs the following flow:
 
-## Prerequisites
+1. `GET /rest/v3/me` — fetch account information (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the top of the order book (public endpoint, no authentication).
+3. Compute a limit price at 50% of the best bid, floored to an integer (the `btcbrl` market has `price_increment: 1.0`).
+4. `POST /rest/v3/orders` — create a LIMIT BUY order of 0.0001 BTC at that price.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders (the new order shows up).
+7. `PUT /rest/v3/orders/cancel` — cancel the order by id.
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+> **Warning:** this example creates a REAL order on your account — a LIMIT BUY of
+> 0.0001 BTC at 50% of the current market price. That price is inside the band accepted
+> by the API but far too low to ever execute, and the order is cancelled at the end of
+> the flow.
 
-- Java: These examples are written for Java, ensure you have the latest .NET SDK installed.
-- Maven: Maven is a build automation tool used primarily for Java projects.
+## Requirements
 
-## Getting Started
+- [Docker](https://www.docker.com/) (recommended — no local toolchain needed), **or**
+- Java 21+ and Maven 3.9+ to run natively.
 
-1. **Install Dependencies**: Navigate to the java examples directory in your terminal and install the necessary dependencies.
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-mvn install
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-2. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-3. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+Alternatively, put both variables in a `.env` file and pass it to Docker with `--env-file .env`.
+
+## Run with Docker
 
 ```bash
-mvn exec:java -Dexec.mainClass="br.com.foxbit.samples.FoxbitApiSamples"
+docker build -t foxbit-sample-java .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-java
 ```
 
-## Additional Notes
+Or, using a `.env` file:
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+```bash
+docker run --rm --env-file .env foxbit-sample-java
+```
+
+## Run natively
+
+```bash
+mvn package
+java -jar target/foxbit-sample.jar
+```
+
+## How request signing works
+
+Every authenticated request carries three headers: `X-FB-ACCESS-KEY` (your API key),
+`X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`.
+The signature is an HMAC-SHA256 (lowercase hex) of the string:
+
+```
+timestamp + method + path + queryString + rawBody
+```
+
+Two gotchas cause most 401 errors:
+
+1. **The query string goes into the prehash DECODED** (raw values, e.g. `q=btc brl`),
+   while the URL itself must carry it percent-encoded per RFC 3986 (`q=btc%20brl`,
+   space is `%20`, never `+`). Both forms must list the parameters in the same order.
+2. **The body is verified against the exact bytes sent on the wire.** Serialize the
+   JSON body once and use that same string both to sign and to send — signing one
+   formatting and sending another (e.g. re-serialization by an HTTP library) breaks
+   the signature.
+
+See the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

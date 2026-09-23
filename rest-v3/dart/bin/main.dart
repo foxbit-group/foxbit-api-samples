@@ -1,173 +1,170 @@
+// Foxbit REST API v3 example (Dart).
+//
+// Flow: fetch account info, read the public order book, place a limit buy
+// order far below the market price, list active orders and cancel the order.
+//
+// Docs: https://docs.foxbit.com.br/rest/v3/
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:http/http.dart' as http;
 
-const String apiBaseUrl = 'https://api.foxbit.com.br';
+const baseUrl = 'https://api.foxbit.com.br';
+const timeout = Duration(seconds: 30);
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const priceFactor = 0.5;
 
-/// Signs the request using HMAC-SHA256 with your API secret.
-Map<String, String> signRequest(
-  String method,
-  String path, {
-  Map<String, String>? params,
-  Map<String, dynamic>? body,
+final String apiKey = Platform.environment['FOXBIT_API_KEY'] ?? '';
+final String apiSecret = Platform.environment['FOXBIT_API_SECRET'] ?? '';
+
+/// Query string with raw (decoded) values, used in the signature pre-hash.
+/// The server reconstructs the pre-hash with DECODED values, so signing the
+/// percent-encoded form would produce a 401.
+String rawQueryString(Map<String, String> params) =>
+    params.entries.map((e) => '${e.key}=${e.value}').join('&');
+
+/// Percent-encodes per RFC 3986. Uri.encodeComponent leaves ! ' ( ) * alone,
+/// so they are escaped explicitly; do NOT use Uri.encodeQueryComponent (+).
+String percentEncode(String value) => Uri.encodeComponent(value).replaceAllMapped(
+    RegExp(r"[!'()*]"),
+    (m) => '%${m[0]!.codeUnitAt(0).toRadixString(16).toUpperCase()}');
+
+/// RFC 3986 percent-encoded query string, used in the request URL.
+String encodedQueryString(Map<String, String> params) => params.entries
+    .map((e) => '${percentEncode(e.key)}=${percentEncode(e.value)}')
+    .join('&');
+
+/// HMAC-SHA256 signature (lowercase hex) over:
+///   timestamp + method + path + decoded query string + raw body
+String sign({
+  required String secret,
+  required String timestamp,
+  required String method,
+  required String path,
+  required String query, // decoded (raw) values
+  required String body, // the exact string sent on the wire
 }) {
-  final rawQueryString = (params == null || params.isEmpty)
-      ? ''
-      : params.entries.map((e) => '${e.key}=${e.value}').join('&');
-
-  final rawBody = body != null ? jsonEncode(body) : '';
-  final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-
-  final preHash = '$timestamp$method$path$rawQueryString$rawBody';
+  final preHash = '$timestamp$method$path$query$body';
   print('PreHash: $preHash');
-
-  final secret = utf8.encode(Platform.environment['FOXBIT_API_SECRET']!);
-  final signature = Hmac(sha256, secret).convert(utf8.encode(preHash)).toString();
-  print('Signature: $signature');
-
-  return {
-    'X-FB-ACCESS-KEY': Platform.environment['FOXBIT_API_KEY']!,
-    'X-FB-ACCESS-TIMESTAMP': timestamp,
-    'X-FB-ACCESS-SIGNATURE': signature,
-    'Content-Type': 'application/json',
-  };
+  return Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(preHash)).toString();
 }
 
-/// Sends an HTTP request to the Foxbit API.
-Future<Map<String, dynamic>> request(
+/// Sends a request to the Foxbit API and returns the decoded JSON response.
+/// Exits the process on any non-2xx status.
+///
+/// Signing gotchas:
+///  1. The query string goes DECODED into the pre-hash but percent-encoded
+///     (RFC 3986) into the URL. Both are built from the same [params] map,
+///     so they always contain the same pairs in the same order.
+///  2. The body is signed exactly as sent: it is serialized ONCE and the
+///     same string is used for both the signature and the request body.
+Future<dynamic> request(
   String method,
   String path, {
-  Map<String, String>? params,
+  Map<String, String> params = const {},
   Map<String, dynamic>? body,
+  bool auth = true,
 }) async {
-  print('--------------------------------------------------');
-  print('Requesting: $method $path');
+  final encodedQuery = encodedQueryString(params);
+  final rawBody = body == null ? '' : jsonEncode(body); // serialize ONCE
 
-  final headers = signRequest(method, path, params: params, body: body);
+  print('-' * 50);
+  print('$method $path${encodedQuery.isEmpty ? '' : '?$encodedQuery'}');
 
-  final uri = Uri.parse('$apiBaseUrl$path').replace(queryParameters: params);
-
-  late http.Response resp;
-  if (method == 'GET') {
-    resp = await http.get(uri, headers: headers);
-  } else if (method == 'POST') {
-    resp = await http.post(uri, headers: headers, body: jsonEncode(body));
-  } else if (method == 'PUT') {
-    resp = await http.put(uri, headers: headers, body: jsonEncode(body));
-  } else {
-    throw ArgumentError('Unsupported HTTP method: $method');
+  final headers = <String, String>{'Content-Type': 'application/json'};
+  if (auth) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    headers['X-FB-ACCESS-KEY'] = apiKey;
+    headers['X-FB-ACCESS-TIMESTAMP'] = timestamp;
+    headers['X-FB-ACCESS-SIGNATURE'] = sign(
+      secret: apiSecret,
+      timestamp: timestamp,
+      method: method,
+      path: path,
+      query: rawQueryString(params),
+      body: rawBody,
+    );
   }
 
-  if (resp.statusCode != 200 && resp.statusCode != 201) {
-    stderr.writeln('HTTP ${resp.statusCode}: ${resp.body}');
-    throw HttpException('Request failed with status ${resp.statusCode}');
+  final url =
+      Uri.parse('$baseUrl$path${encodedQuery.isEmpty ? '' : '?$encodedQuery'}');
+  final client = HttpClient()..connectionTimeout = timeout;
+  try {
+    final httpRequest = await client.openUrl(method, url);
+    for (final entry in headers.entries) {
+      httpRequest.headers.set(entry.key, entry.value);
+    }
+    if (rawBody.isNotEmpty) {
+      final bytes = utf8.encode(rawBody); // the exact bytes that were signed
+      httpRequest.headers.contentLength = bytes.length;
+      httpRequest.add(bytes);
+    }
+    final response = await httpRequest.close().timeout(timeout);
+    final responseBody =
+        await response.transform(utf8.decoder).join().timeout(timeout);
+    print('Response (${response.statusCode}): $responseBody');
+    // Throw instead of exiting: keeps this helper reusable outside a script.
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('$method $path failed with HTTP ${response.statusCode}');
+    }
+    return responseBody.isEmpty ? null : jsonDecode(responseBody);
+  } finally {
+    client.close();
   }
-  return jsonDecode(resp.body) as Map<String, dynamic>;
-}
-
-Future<Map<String, dynamic>> createOrder() {
-  return request(
-    'POST',
-    '/rest/v3/orders',
-    body: {
-      'market_symbol': 'btcbrl',
-      'side': 'BUY',
-      'type': 'LIMIT',
-      'price': '500000.0',
-      'quantity': '0.00001',
-    },
-  );
-}
-
-Future<List<dynamic>> getActiveOrders() {
-  return request(
-    'GET',
-    '/rest/v3/orders',
-    params: {
-      'market_symbol': 'btcbrl',
-      'state': 'ACTIVE',
-    },
-  ).then((data) => data['data'] as List<dynamic>);
-}
-
-Future<Map<String, dynamic>> cancelOrder(String orderId) {
-  return request(
-    'PUT',
-    '/rest/v3/orders/cancel',
-    body: {
-      'type': 'ID',
-      'id': orderId,
-    },
-  );
 }
 
 Future<void> main() async {
-  if (Platform.environment['FOXBIT_API_KEY'] == null ||
-      Platform.environment['FOXBIT_API_SECRET'] == null) {
-    stderr.writeln('Please set FOXBIT_API_KEY and FOXBIT_API_SECRET');
+  if (apiKey.isEmpty || apiSecret.isEmpty) {
+    stderr.writeln(
+        'Missing FOXBIT_API_KEY and/or FOXBIT_API_SECRET environment variables.');
     exit(1);
   }
 
   try {
-    print('FOXBIT_API_KEY: ${Platform.environment['FOXBIT_API_KEY']}');
+    // 1. Account info (authenticated request, no params).
+    await request('GET', '/rest/v3/me');
 
-    // Get the user information
-    final meResponse = await request('GET', '/rest/v3/me');
-    print('Response: $meResponse');
+    // 2. Order book (public endpoint -- no authentication headers).
+    final orderbook = await request(
+      'GET',
+      '/rest/v3/markets/btcbrl/orderbook',
+      params: {'depth': '1'},
+      auth: false,
+    );
+    final bestBid = double.parse(orderbook['bids'][0][0] as String);
 
-    // Get current price
-    final marketSymbol = 'btcbrl';
-    final tickerResponse =
-        await request('GET', '/rest/v3/markets/$marketSymbol/ticker/24hr');
-    final tickerList = tickerResponse['data'] as List<dynamic>?;
-    final ticker = (tickerList != null && tickerList.isNotEmpty) ? tickerList[0] : null;
-    print('Response: $ticker');
+    // 3. Price the order at 50% of the best bid: inside the accepted price
+    // band (an absurd price like 10.0 is rejected with 422) yet far too low
+    // to ever execute. btcbrl has price_increment 1.0, so use an integer.
+    final price = (bestBid * priceFactor).floor().toString();
 
-    // Request to create a new order
-    final lastPrice = double.parse(ticker['best']['bid']['price'] as String);
-    final targetPrice = (lastPrice * 0.9).toString();
-    final order = {
-      'market_symbol': marketSymbol,
+    // 4. Place a limit buy order and capture its id.
+    final order = await request('POST', '/rest/v3/orders', body: {
+      'market_symbol': 'btcbrl',
       'side': 'BUY',
       'type': 'LIMIT',
-      'price': targetPrice,
+      'price': price,
       'quantity': '0.0001',
-    };
-    final orderResponse =
-        await request('POST', '/rest/v3/orders', body: order);
-    print('Response: $orderResponse');
+    });
+    final orderId = order['id'] as String;
 
+    // 5. Give the matching engine a moment to process the order.
     await Future.delayed(const Duration(seconds: 2));
 
-    // Get active orders
-    final oneHourAgoISO = DateTime.now()
-        .toUtc()
-        .subtract(const Duration(hours: 1))
-        .toIso8601String();
-    final ordersParam = <String, String>{
-      'market_symbol': marketSymbol,
+    // 6. List active orders (the new order should show up).
+    await request('GET', '/rest/v3/orders', params: {
+      'market_symbol': 'btcbrl',
       'state': 'ACTIVE',
-      'start_time': oneHourAgoISO,
-    };
-    final ordersResponse =
-        await request('GET', '/rest/v3/orders', params: ordersParam);
-    print('Response: $ordersResponse');
+    });
 
-    // Request to cancel the order
-    final orderToCancel = {
+    // 7. Cancel the order by id.
+    await request('PUT', '/rest/v3/orders/cancel', body: {
       'type': 'ID',
-      'id': orderResponse['id'],
-    };
-    final cancelResponse = await request(
-      'PUT',
-      '/rest/v3/orders/cancel',
-      body: orderToCancel,
-    );
-    print('Response: $cancelResponse');
+      'id': orderId,
+    });
   } catch (error) {
-    stderr.writeln('Failed to process request.');
-    exit(2);
+    stderr.writeln('Error: $error');
+    exit(1);
   }
 }

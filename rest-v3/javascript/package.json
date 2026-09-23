@@ -1,15 +1,13 @@
 {
-  "name": "javascript",
+  "name": "foxbit-rest-v3-javascript-example",
   "version": "1.0.0",
-  "description": "",
-  "main": "examples.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "private": true,
+  "description": "Foxbit REST API v3 example in plain Node.js (zero dependencies)",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
   },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^1.16.0",
-    "crypto-js": "^4.2.0"
+  "scripts": {
+    "start": "node examples.js"
   }
 }

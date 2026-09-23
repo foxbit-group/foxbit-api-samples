@@ -1,162 +1,155 @@
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.net.URI
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpRequest.BodyPublishers
+import java.net.http.HttpResponse.BodyHandlers
+import java.nio.charset.StandardCharsets.UTF_8
+import java.time.Duration
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import kotlin.math.floor
 import kotlin.system.exitProcess
-import kotlin.time.Duration.Companion.seconds
-import java.time.Instant
+import org.json.JSONObject
 
-private const val API_BASE_URL = "https://api.foxbit.com.br"
-private val JSON = "application/json".toMediaType()
+private const val BASE_URL = "https://api.foxbit.com.br"
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+private const val PRICE_FACTOR = 0.5
 
-private val apiKey = System.getenv("FOXBIT_API_KEY") ?: ""
-private val apiSecret = System.getenv("FOXBIT_API_SECRET") ?: ""
+private val apiKey = requireEnv("FOXBIT_API_KEY")
+private val apiSecret = requireEnv("FOXBIT_API_SECRET")
+private val TIMEOUT: Duration = Duration.ofSeconds(30)
+private val httpClient: HttpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build()
 
-private val client = OkHttpClient()
-private val mapper = jacksonObjectMapper()
-
-fun sign(
-    method: String,
-    path: String,
-    params: Map<String, String>? = null,
-    rawBody: String = ""
-): Pair<String, String> {
-    val queryString = params?.entries
-        ?.joinToString("&") { "${it.key}=${it.value}" }
-        ?: ""
-    val timestamp = System.currentTimeMillis().toString()
-    val preHash = "$timestamp$method$path$queryString$rawBody"
-    println("PreHash: $preHash")
-
-    val mac = Mac.getInstance("HmacSHA256")
-    mac.init(SecretKeySpec(apiSecret.toByteArray(), "HmacSHA256"))
-    val signature = mac.doFinal(preHash.toByteArray())
-        .joinToString("") { "%02x".format(it) }
-    println("Signature: $signature")
-    return signature to timestamp
-}
-
-fun request(
-    method: String,
-    path: String,
-    params: Map<String, String>? = null,
-    body: String? = null
-): String {
-    println("--------------------------------------------------")
-    println("Requesting: $method $path")
-
-    val (signature, timestamp) = sign(method, path, params, body ?: "")
-    val urlBuilder = "$API_BASE_URL$path".toHttpUrlOrNull()!!.newBuilder()
-    params?.forEach { urlBuilder.addQueryParameter(it.key, it.value) }
-    val url = urlBuilder.build()
-
-    val reqBody = body?.toRequestBody(JSON)
-    val request = Request.Builder()
-        .url(url)
-        .method(method, if (method == "GET") null else reqBody)
-        .addHeader("X-FB-ACCESS-KEY", apiKey)
-        .addHeader("X-FB-ACCESS-TIMESTAMP", timestamp)
-        .addHeader("X-FB-ACCESS-SIGNATURE", signature)
-        .addHeader("Content-Type", "application/json")
-        .build()
-
-    client.newCall(request).execute().use { resp ->
-        val respBody = resp.body?.string() ?: ""
-        if (!resp.isSuccessful) {
-            println("HTTP Status Code: ${resp.code}, Error Response Body: $respBody")
-            exitProcess(1)
-        }
-        return respBody
+private fun requireEnv(name: String): String {
+    val value = System.getenv(name)
+    if (value.isNullOrBlank()) {
+        System.err.println("Missing required environment variable: $name")
+        exitProcess(1)
     }
+    return value
 }
 
-fun createOrder(): String {
-    val order = mapOf(
-        "market_symbol" to "btcbrl",
-        "side" to "BUY",
-        "type" to "LIMIT",
-        "price" to "450000.0",
-        "quantity" to "0.00001"
-    )
-    return request(
-        method = "POST",
-        path = "/rest/v3/orders",
-        body = mapper.writeValueAsString(order)
-    )
+/** Percent-encodes a query key/value per RFC 3986: space = %20 (never +), and
+ * URLEncoder's form encoding is corrected for '*' (raw) and '~' (escaped). */
+private fun percentEncode(value: String): String =
+    URLEncoder.encode(value, UTF_8)
+        .replace("+", "%20")
+        .replace("*", "%2A")
+        .replace("%7E", "~")
+
+/**
+ * Returns the HMAC-SHA256 (hex) of: timestamp + method + path + decodedQuery + rawBody.
+ *
+ * Gotcha #1: the query string goes into the pre-hash with RAW (decoded) values,
+ * even though the URL itself carries it percent-encoded.
+ */
+private fun sign(
+    secret: String,
+    timestamp: String,
+    method: String,
+    path: String,
+    decodedQuery: String,
+    rawBody: String,
+): String {
+    val preHash = "$timestamp$method$path$decodedQuery$rawBody"
+    println("PreHash: $preHash")
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(secret.toByteArray(UTF_8), "HmacSHA256"))
+    return mac.doFinal(preHash.toByteArray(UTF_8)).joinToString("") { "%02x".format(it) }
 }
 
-fun getActiveOrders(): String =
-    request(
-        method = "GET",
-        path = "/rest/v3/orders",
-        params = mapOf("market_symbol" to "btcbrl", "state" to "ACTIVE")
-    )
+/**
+ * Sends a request and returns the response body, aborting on any non-2xx status.
+ *
+ * The encoded query (sent in the URL) and the decoded query (signed) are built
+ * from the same ordered parameter list, so they can never diverge.
+ *
+ * Gotcha #2: the body is signed exactly as the bytes sent — it is serialized to
+ * a string ONCE, and that same string is both signed and transmitted.
+ */
+private fun request(
+    method: String,
+    path: String,
+    params: List<Pair<String, String>> = emptyList(),
+    body: JSONObject? = null,
+    auth: Boolean = true,
+): String {
+    val decodedQuery = params.joinToString("&") { (key, value) -> "$key=$value" }
+    val encodedQuery = params.joinToString("&") { (key, value) -> "${percentEncode(key)}=${percentEncode(value)}" }
+    val rawBody = body?.toString() ?: "" // single serialization: signed and sent as-is
 
-fun cancelOrder(orderId: String): String {
-    val cancelBody = mapOf("type" to "ID", "id" to orderId)
-    return request(
-        method = "PUT",
-        path = "/rest/v3/orders/cancel",
-        body = mapper.writeValueAsString(cancelBody)
-    )
+    println("-".repeat(50))
+    println("$method $path")
+
+    val url = BASE_URL + path + if (encodedQuery.isEmpty()) "" else "?$encodedQuery"
+    val builder = HttpRequest.newBuilder(URI.create(url))
+        .timeout(TIMEOUT)
+        .header("Content-Type", "application/json")
+        .method(method, if (rawBody.isEmpty()) BodyPublishers.noBody() else BodyPublishers.ofString(rawBody))
+
+    if (auth) {
+        val timestamp = System.currentTimeMillis().toString()
+        val signature = sign(apiSecret, timestamp, method, path, decodedQuery, rawBody)
+        builder
+            .header("X-FB-ACCESS-KEY", apiKey)
+            .header("X-FB-ACCESS-TIMESTAMP", timestamp)
+            .header("X-FB-ACCESS-SIGNATURE", signature)
+    }
+
+    val response = httpClient.send(builder.build(), BodyHandlers.ofString())
+    println("Response (${response.statusCode()}): ${response.body()}")
+    // Throw instead of exiting: keeps this helper reusable outside a script.
+    if (response.statusCode() !in 200..299) {
+        throw IllegalStateException("$method $path failed with HTTP ${response.statusCode()}")
+    }
+    return response.body()
 }
 
 fun main() {
-    println("FOXBIT_API_KEY: $apiKey")
+    try {
+        // 1. Account information (authenticated request without params).
+        request("GET", "/rest/v3/me")
 
-    // Get the user information
-    val meResponse = request("GET", "/rest/v3/me")
-    println("Response: $meResponse")
+        // 2. Order book snapshot (public endpoint — note auth = false: no signature needed).
+        val orderbook = request(
+            "GET", "/rest/v3/markets/btcbrl/orderbook",
+            params = listOf("depth" to "1"),
+            auth = false,
+        )
+        val bestBid = JSONObject(orderbook).getJSONArray("bids").getJSONArray(0).getString(0)
 
-    // Get current price
-    val marketSymbol = "btcbrl"
-    val tickerResponse = request("GET", "/rest/v3/markets/$marketSymbol/ticker/24hr")
-    val tickerNode = mapper.readTree(tickerResponse).path("data").path(0)
-    println("Response: $tickerNode")
+        // 3. Bid at 50% of the best bid: inside the accepted price band (absurd values
+        // like a hardcoded 10.0 are rejected with 422 "Price out of range") yet far too
+        // low to ever execute. btcbrl has price_increment 1.0, so format as an integer.
+        val price = floor(bestBid.toDouble() * PRICE_FACTOR).toLong().toString()
+        println("Best bid: $bestBid -> limit order price: $price")
 
-    // Request to create a new order
-    val lastPrice = tickerNode.path("best").path("bid").path("price").asText().toDouble()
-    val targetPrice = (lastPrice * 0.9).toString() // Calculate target price: 10% below the best bid price
-    val order = mapOf(
-        "market_symbol" to marketSymbol,
-        "side" to "BUY",
-        "type" to "LIMIT",
-        "price" to targetPrice,
-        "quantity" to "0.0001"
-    )
-    val orderResponse = request(
-        method = "POST",
-        path = "/rest/v3/orders",
-        body = mapper.writeValueAsString(order)
-    )
-    println("Response: $orderResponse")
+        // 4. Create a LIMIT BUY order. Key order in the JSON does not matter because
+        // the exact serialized string is what gets signed and sent.
+        val order = JSONObject()
+            .put("market_symbol", "btcbrl")
+            .put("side", "BUY")
+            .put("type", "LIMIT")
+            .put("price", price)
+            .put("quantity", "0.0001")
+        val created = request("POST", "/rest/v3/orders", body = order)
+        val orderId = JSONObject(created).getString("id")
 
-    Thread.sleep(2000)
+        // 5. Give the matching engine a moment to register the order.
+        Thread.sleep(2_000)
 
-    // Get active orders
-    val oneHourAgoISO = Instant.ofEpochMilli(System.currentTimeMillis() - 60L * 60L * 1000L).toString()
-    val ordersParams = linkedMapOf(
-        "market_symbol" to marketSymbol,
-        "state" to "ACTIVE",
-        "start_time" to oneHourAgoISO // Optional: included to test signature behavior with special chars
-    )
-    val ordersResponse = request(
-        method = "GET",
-        path = "/rest/v3/orders",
-        params = ordersParams
-    )
-    println("Response: $ordersResponse")
+        // 6. The new order must show up among the active ones.
+        request("GET", "/rest/v3/orders", params = listOf("market_symbol" to "btcbrl", "state" to "ACTIVE"))
 
-    // Request to cancel the order
-    val orderId = mapper.readTree(orderResponse).path("id").asText()
-    val cancelBody = mapOf("type" to "ID", "id" to orderId)
-    val cancelResponse = request(
-        method = "PUT",
-        path = "/rest/v3/orders/cancel",
-        body = mapper.writeValueAsString(cancelBody)
-    )
-    println("Response: $cancelResponse")
+        // 7. Cancel the order by its id.
+        request("PUT", "/rest/v3/orders/cancel", body = JSONObject().put("type", "ID").put("id", orderId))
+
+        println("-".repeat(50))
+        println("Done: order $orderId created and cancelled.")
+    } catch (error: Exception) {
+        System.err.println("Error: ${error.message}")
+        exitProcess(1)
+    }
 }

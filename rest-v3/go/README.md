@@ -1,23 +1,74 @@
-# Foxbit API REST v3 GoLang Examples
+# Foxbit REST API v3 — Go Example
 
-Here is the GoLang examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using GoLang. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A single-file, standard-library-only Go program that demonstrates how to sign
+and send requests to the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/).
 
-## Prerequisites
+It runs the following flow:
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+1. `GET /rest/v3/me` — fetch account information (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetch the order book (public, unauthenticated).
+3. Compute an order price at 50% of the best bid.
+4. `POST /rest/v3/orders` — create a LIMIT BUY order for 0.0001 BTC (authenticated).
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders (authenticated).
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4 (authenticated).
 
-- GoLang: These examples are written for Go, ensure you have the latest stable version installed.
+> **Warning:** this example creates a REAL order on your account — a LIMIT BUY
+> of 0.0001 BTC priced at 50% of the current market. That price is inside the
+> accepted price band but far too low to ever execute, and the order is
+> cancelled at the end of the flow.
 
-## Getting Started
+## Requirements
 
-1. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-2. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+- Docker (recommended), or
+- Go 1.26+ if you want to run it natively.
+
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-go run examples.go
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-## Additional Notes
+Alternatively, put both variables in a `.env` file and pass it to Docker with
+`--env-file .env`.
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-go .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-go
+# or: docker run --rm --env-file .env foxbit-sample-go
+```
+
+## Run natively
+
+```bash
+go run .
+```
+
+## How request signing works
+
+Every authenticated request carries three headers: `X-FB-ACCESS-KEY` (your API
+key), `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and
+`X-FB-ACCESS-SIGNATURE`. The signature is a lowercase-hex HMAC-SHA256 of the
+prehash string, keyed with your API secret:
+
+```
+preHash = timestamp + METHOD + path + queryString + rawBody
+```
+
+Two gotchas that cause most `401` errors:
+
+1. **The query string goes into the prehash DECODED.** Sign the raw values
+   (`market_symbol=btc brl`) in the same pair order as the URL, but send them
+   percent-encoded per RFC 3986 (`market_symbol=btc%20brl`, space is `%20`,
+   never `+`).
+2. **The body is verified byte-for-byte.** Serialize the JSON body exactly
+   once and use that same string both in the prehash and as the request body.
+   Re-serializing (or letting the HTTP client re-encode it) can change the
+   bytes and invalidate the signature.
+
+See the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

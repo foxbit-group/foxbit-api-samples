@@ -1,36 +1,53 @@
-# Foxbit API REST v3 JavaScript SDK Examples
+# Foxbit REST API v3 — JavaScript SDK Example
 
 [![npm version](https://img.shields.io/npm/v/@foxbit-group/rest-api.svg?style=flat)](https://www.npmjs.com/package/@foxbit-group/rest-api)
 
-> **SDK Oficial:** [@foxbit-group/rest-api](https://www.npmjs.com/package/@foxbit-group/rest-api)
+A minimal Node.js example of the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/) built on the official SDK, [`@foxbit-group/rest-api`](https://www.npmjs.com/package/@foxbit-group/rest-api). It runs a complete flow in 7 steps:
 
-This directory contains JavaScript examples demonstrating how to interact with the Foxbit API REST v3 using the official Foxbit SDK. These scripts cover a range of functionalities, from fetching market data to placing orders and managing your account, now leveraging the SDK for easier integration and improved reliability.
+1. `GET /rest/v3/me` — authenticated request with no parameters.
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — public market data to read the best bid.
+3. Compute a limit price at 50% of the best bid, floored to an integer (`btcbrl` uses `price_increment: 1.0`).
+4. `POST /rest/v3/orders` — create a LIMIT BUY for 0.0001 BTC at the computed price.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
 
-## Prerequisites
+> **Warning:** this example creates a REAL order on your account (LIMIT BUY 0.0001 BTC at 50% of the market price — inside the exchange price band, but far too low to ever execute) and cancels it right after.
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+## Requirements
 
-- Node.js: These examples are written for Node.js, a JavaScript runtime built on Chrome's V8 JavaScript engine. Ensure you have the latest stable version installed.
-- NPM (Node Package Manager): Comes with Node.js, used for managing dependencies.
+- Docker (recommended), or
+- Node.js >= 18 to run natively.
 
-## Getting Started
+## Credentials
 
-1. **Install Dependencies**: Navigate to the JavaScript SDK examples directory in your terminal and run `npm install` to install the necessary dependencies, including the Foxbit SDK.
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
+
+```bash
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
+```
+
+Alternatively, put both variables in a `.env` file and use `--env-file .env` with Docker.
+
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-sdk-javascript .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-sdk-javascript
+# or: docker run --rm --env-file .env foxbit-sample-sdk-javascript
+```
+
+## Run natively
 
 ```bash
 npm install
+npm start
+# or: node examples.js
 ```
 
-2. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
+## How request signing works
 
-3. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+Every authenticated request must be signed with HMAC-SHA256 and carry the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`.
 
-```bash
-node examples.js
-```
-
-## Additional Notes
-
-These examples are meant to serve as a starting point and now utilize the official Foxbit SDK for all API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+**The official SDK handles all of this for you.** When you build a `Configuration` with your `apiKey`/`apiSecret`, the SDK computes the prehash (`timestamp + method + path + queryString + rawBody`), signs it and attaches the headers on every call — so this example contains no manual signing code. If you need to implement signing yourself, see the dependency-free examples under [`rest-v3/`](../../rest-v3) and the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

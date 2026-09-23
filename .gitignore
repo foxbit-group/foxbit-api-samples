@@ -59,3 +59,14 @@ typings/
 
 # next.js build output
 .next
+
+# Single-header dependency downloaded by the native C++ build (see rest-v3/cpp/README.md)
+rest-v3/cpp/json.hpp
+
+# Build artifacts from the REST v3 examples (compiled locally, never committed)
+.build/
+.dart_tool/
+target/
+.gradle/
+rest-v3/dotnet/bin/
+rest-v3/dotnet/obj/

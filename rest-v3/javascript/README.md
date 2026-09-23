@@ -1,30 +1,59 @@
-# Foxbit API REST v3 JavaScript Examples
+# Foxbit REST API v3 — JavaScript Example
 
-Here is the JavaScript examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using JavaScript. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, dependency-free Node.js example of the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/). It runs a complete flow in 7 steps:
 
-## Prerequisites
+1. `GET /rest/v3/me` — authenticated request with no parameters.
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — public request (no signature) to fetch the best bid.
+3. Compute a limit price at 50% of the best bid, rounded to an integer.
+4. `POST /rest/v3/orders` — create a LIMIT BUY order for 0.0001 BTC.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+> **Warning:** this example creates a REAL order on your account (LIMIT BUY 0.0001 BTC at 50% of the market price — inside the exchange price band, but far too low to ever execute) and cancels it right after.
 
-- Node.js: These examples are written for Node.js, a JavaScript runtime built on Chrome's V8 JavaScript engine. Ensure you have the latest stable version installed.
-- NPM (Node Package Manager): Comes with Node.js, used for managing dependencies.
+## Requirements
 
-## Getting Started
+- Docker (recommended), or
+- Node.js >= 18 (native `fetch`) to run natively. No npm packages are needed.
 
-1. **Install Dependencies**: Navigate to the JavaScript examples directory in your terminal and run `npm install` to install the necessary dependencies.
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-npm install
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-2. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-3. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+Alternatively, put both variables in a `.env` file and use `--env-file .env` with Docker.
+
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-javascript .
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-javascript
+# or: docker run --rm --env-file .env foxbit-sample-javascript
+```
+
+## Run natively
 
 ```bash
 node examples.js
+# or: npm start
 ```
 
-## Additional Notes
+## How request signing works
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+Every authenticated request sends three headers: `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The signature is an HMAC-SHA256 (hex) of:
+
+```
+timestamp + method + path + queryString + rawBody
+```
+
+Two gotchas that cause most `401` errors:
+
+1. **The query string enters the prehash DECODED** (raw values, e.g. `market_symbol=btc brl`), while the URL itself sends the values percent-encoded per RFC 3986 (`market_symbol=btc%20brl`). Build both from the same ordered structure.
+2. **The body is verified byte-for-byte as sent.** Serialize the JSON body exactly once, sign that string and send that same string — never let the HTTP client re-serialize it.
+
+See the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

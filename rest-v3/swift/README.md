@@ -1,28 +1,61 @@
-# Foxbit API REST v3 Swift Examples
+# Foxbit REST API v3 — Swift Example
 
-Here is the Swift examples for the Foxbit API REST v3. This section provides a series of scripts to help you understand how to interact with the Foxbit API using Swift. These examples cover a range of functionalities from fetching market data to placing orders and managing your account.
+A minimal, self-contained example of how to call the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/) from Swift, including request signing.
 
-## Prerequisites
+It runs the following flow:
 
-Before you begin, ensure you have the following prerequisites installed on your system:
+1. `GET /rest/v3/me` — fetch account info (authenticated).
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — read the order book (public, no auth).
+3. Compute a limit price at 50% of the best bid.
+4. `POST /rest/v3/orders` — create a LIMIT BUY order for 0.0001 BTC.
+5. Wait 2 seconds.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
 
-- Docker
+> **Warning**: this example places a REAL order on your account — a LIMIT BUY of 0.0001 BTC at 50% of the current market price. That price is inside the accepted price band but far from ever executing, and the order is cancelled at the end of the flow.
 
-## Getting Started
+## Requirements
 
-1. **Configure API Keys**: You must read the [main README file located at the root of the project](https://github.com/foxbit-group/foxbit-api-samples?tab=readme-ov-file#getting-started) for general information on setting up your environment, including configuring your API keys as environment variables.
-2. **Running the Examples**: To run the example, navigate to the project directory in the terminal and execute the following command:
+- Docker (recommended), or
+- Swift 6.1+ toolchain (native run, optional)
+
+## Credentials
+
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
 
 ```bash
-docker build -t foxbit-swift-examples .
-
-docker run --rm \
-  -e FOXBIT_API_KEY=$FOXBIT_API_KEY \
-  -e FOXBIT_API_SECRET=$FOXBIT_API_SECRET \
-  foxbit-swift-examples
+export FOXBIT_API_KEY="your-api-key"
+export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-## Additional Notes
+Or put both variables in a `.env` file and pass it to Docker with `--env-file .env`.
 
-These examples are meant to serve as a starting point. They demonstrate basic API interactions. It's recommended to review and test the code thoroughly before using it in a production environment.
-For detailed API documentation, refer to the [Foxbit API Documentation](https://docs.foxbit.com.br/rest/v3/).
+## Run with Docker
+
+```bash
+docker build -t foxbit-sample-swift .
+
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-swift
+# or: docker run --rm --env-file .env foxbit-sample-swift
+```
+
+## Run natively
+
+```bash
+swift run
+```
+
+## How request signing works
+
+Every authenticated request sends three headers: `X-FB-ACCESS-KEY` (your API key), `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The signature is an HMAC-SHA256 (hex) of:
+
+```
+timestamp + method + path + queryString + rawBody
+```
+
+Two gotchas that cause most `401 Unauthorized` errors:
+
+1. **The query string goes into the pre-hash DECODED** (raw values, e.g. `market_symbol=btc brl`), while the URL itself carries it percent-encoded (RFC 3986, e.g. `market_symbol=btc%20brl`). Build both strings from the same ordered parameter list.
+2. **The body is verified byte-for-byte as sent.** Serialize the JSON body exactly once and sign that same string — never re-serialize it when sending.
+
+See the full documentation at <https://docs.foxbit.com.br/rest/v3/>.

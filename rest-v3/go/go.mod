@@ -1,3 +1,3 @@
-module examples
+module github.com/foxbit-group/foxbit-api-samples/rest-v3/go
 
-go 1.19
+go 1.26
