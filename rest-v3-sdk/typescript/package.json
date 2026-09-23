@@ -12,7 +12,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@foxbit-group/rest-api": "0.1.3"
+    "@foxbit-group/rest-api": "0.1.5"
   },
   "devDependencies": {
     "@types/node": "22.20.0",
