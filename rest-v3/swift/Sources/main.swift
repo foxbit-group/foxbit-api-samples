@@ -11,6 +11,10 @@ import FoundationNetworking // URLSession on Linux
 #endif
 import Crypto // HMAC-SHA256 on Linux (CryptoKit is Apple-platform only)
 
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+let priceFactor = 0.5
+
 struct ExampleError: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) { self.description = description }
@@ -23,6 +27,16 @@ func percentEncode(_ value: String) -> String {
         charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
     )
     return value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? value
+}
+
+// Serializes a JSON body ONCE. The returned string is what gets signed and sent,
+// so the signature always matches the bytes on the wire.
+func jsonBody(_ object: [String: Any]) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    guard let string = String(data: data, encoding: .utf8) else {
+        throw ExampleError("Could not encode JSON body")
+    }
+    return string
 }
 
 // Query string with RAW (decoded) values — used ONLY in the signature pre-hash.
@@ -78,6 +92,7 @@ func request(
     }
 
     var req = URLRequest(url: url)
+    req.timeoutInterval = 30
     req.httpMethod = method
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     if let rawBody {
@@ -142,12 +157,17 @@ do {
     // 3. Price at 50% of the best bid: inside the accepted price band but far
     //    from ever executing. The API rejects absurd prices (e.g. 10.0) with
     //    422. btcbrl has price_increment 1.0, so format it as an integer.
-    let price = String(Int((bestBid * 0.5).rounded(.down)))
+    let price = String(Int((bestBid * priceFactor).rounded(.down)))
 
     // 4. Create the order. The body is serialized ONCE; the same string is
     //    signed and sent.
-    let orderBody =
-        #"{"market_symbol":"btcbrl","side":"BUY","type":"LIMIT","price":"\#(price)","quantity":"0.0001"}"#
+    let orderBody = try jsonBody([
+        "market_symbol": "btcbrl",
+        "side": "BUY",
+        "type": "LIMIT",
+        "price": price,
+        "quantity": "0.0001",
+    ])
     let orderData = try await request(
         apiKey: apiKey,
         apiSecret: apiSecret,
@@ -173,7 +193,7 @@ do {
     )
 
     // 7. Cancel the order created in step 4.
-    let cancelBody = #"{"type":"ID","id":"\#(orderId)"}"#
+    let cancelBody = try jsonBody(["type": "ID", "id": orderId])
     _ = try await request(
         apiKey: apiKey,
         apiSecret: apiSecret,

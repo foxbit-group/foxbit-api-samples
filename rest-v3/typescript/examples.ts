@@ -2,6 +2,10 @@ import { createHmac } from 'node:crypto';
 
 // Foxbit REST API v3 base URL.
 const API_URL = 'https://api.foxbit.com.br';
+const TIMEOUT_MS = 30_000;
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const PRICE_FACTOR = 0.5;
 
 // Credentials come from the environment. Fail fast (before any request) with a
 // clear message if they are missing. The key and secret are never printed.
@@ -93,6 +97,7 @@ async function request(
     method,
     headers,
     body: rawBody === '' ? undefined : rawBody,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   const text = await response.text();
@@ -121,12 +126,10 @@ async function main(): Promise<void> {
     auth: false,
   });
 
-  // 3. Price = floor(bestBid * 0.5), as an integer. btcbrl has price_increment 1.0,
-  //    so the price must be a whole number. Half of the market price stays inside
-  //    the API price band yet is far too low to ever execute (a hardcoded value
-  //    like "10.0" would be rejected with 422 Price out of range).
+  // 3. Price = floor(bestBid * PRICE_FACTOR); btcbrl has price_increment 1.0,
+  //    so it must be a whole number. See PRICE_FACTOR above for the 422 caveat.
   const bestBid = Number(orderbook.bids[0][0]);
-  const price = Math.floor(bestBid * 0.5).toString();
+  const price = Math.floor(bestBid * PRICE_FACTOR).toString();
 
   // 4. Create a real LIMIT BUY order and capture its id.
   const created = await request('POST', '/rest/v3/orders', {

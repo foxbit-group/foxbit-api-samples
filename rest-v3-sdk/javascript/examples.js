@@ -23,6 +23,10 @@ const {
 } = require("@foxbit-group/rest-api");
 
 const MARKET_SYMBOL = "btcbrl";
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const PRICE_FACTOR = 0.5;
+const TIMEOUT_MS = 30_000;
 
 // Fail fast if credentials are missing. Never print their values.
 for (const name of ["FOXBIT_API_KEY", "FOXBIT_API_SECRET"]) {
@@ -56,6 +60,8 @@ async function main() {
   const configuration = new Configuration({
     apiKey: process.env.FOXBIT_API_KEY,
     apiSecret: process.env.FOXBIT_API_SECRET,
+    // baseOptions is merged into every axios request by the SDK.
+    baseOptions: { timeout: TIMEOUT_MS },
   });
 
   const memberApi = new MemberInfoApi(configuration);
@@ -78,7 +84,7 @@ async function main() {
   // (btcbrl has price_increment 1.0). This stays inside the exchange's
   // accepted price band — a hardcoded value like 10.0 is rejected with
   // 422 "Price out of range" — while being far too low to ever execute.
-  const price = String(Math.floor(bestBid * 0.5));
+  const price = String(Math.floor(bestBid * PRICE_FACTOR));
 
   // 4. Create the order at the computed price.
   const created = await tradingApi.createOrder({

@@ -10,6 +10,10 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 const baseUrl = 'https://api.foxbit.com.br';
+const timeout = Duration(seconds: 30);
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const priceFactor = 0.5;
 
 final String apiKey = Platform.environment['FOXBIT_API_KEY'] ?? '';
 final String apiSecret = Platform.environment['FOXBIT_API_SECRET'] ?? '';
@@ -20,11 +24,15 @@ final String apiSecret = Platform.environment['FOXBIT_API_SECRET'] ?? '';
 String rawQueryString(Map<String, String> params) =>
     params.entries.map((e) => '${e.key}=${e.value}').join('&');
 
+/// Percent-encodes per RFC 3986. Uri.encodeComponent leaves ! ' ( ) * alone,
+/// so they are escaped explicitly; do NOT use Uri.encodeQueryComponent (+).
+String percentEncode(String value) => Uri.encodeComponent(value).replaceAllMapped(
+    RegExp(r"[!'()*]"),
+    (m) => '%${m[0]!.codeUnitAt(0).toRadixString(16).toUpperCase()}');
+
 /// RFC 3986 percent-encoded query string, used in the request URL.
-/// Uri.encodeComponent encodes a space as %20. Do NOT use
-/// Uri.encodeQueryComponent, which encodes it as '+'.
 String encodedQueryString(Map<String, String> params) => params.entries
-    .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+    .map((e) => '${percentEncode(e.key)}=${percentEncode(e.value)}')
     .join('&');
 
 /// HMAC-SHA256 signature (lowercase hex) over:
@@ -81,7 +89,7 @@ Future<dynamic> request(
 
   final url =
       Uri.parse('$baseUrl$path${encodedQuery.isEmpty ? '' : '?$encodedQuery'}');
-  final client = HttpClient();
+  final client = HttpClient()..connectionTimeout = timeout;
   try {
     final httpRequest = await client.openUrl(method, url);
     for (final entry in headers.entries) {
@@ -92,12 +100,13 @@ Future<dynamic> request(
       httpRequest.headers.contentLength = bytes.length;
       httpRequest.add(bytes);
     }
-    final response = await httpRequest.close();
-    final responseBody = await response.transform(utf8.decoder).join();
+    final response = await httpRequest.close().timeout(timeout);
+    final responseBody =
+        await response.transform(utf8.decoder).join().timeout(timeout);
     print('Response (${response.statusCode}): $responseBody');
+    // Throw instead of exiting: keeps this helper reusable outside a script.
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      stderr.writeln('Request failed, aborting.');
-      exit(1);
+      throw Exception('$method $path failed with HTTP ${response.statusCode}');
     }
     return responseBody.isEmpty ? null : jsonDecode(responseBody);
   } finally {
@@ -112,45 +121,50 @@ Future<void> main() async {
     exit(1);
   }
 
-  // 1. Account info (authenticated request, no params).
-  await request('GET', '/rest/v3/me');
+  try {
+    // 1. Account info (authenticated request, no params).
+    await request('GET', '/rest/v3/me');
 
-  // 2. Order book (public endpoint -- no authentication headers).
-  final orderbook = await request(
-    'GET',
-    '/rest/v3/markets/btcbrl/orderbook',
-    params: {'depth': '1'},
-    auth: false,
-  );
-  final bestBid = double.parse(orderbook['bids'][0][0] as String);
+    // 2. Order book (public endpoint -- no authentication headers).
+    final orderbook = await request(
+      'GET',
+      '/rest/v3/markets/btcbrl/orderbook',
+      params: {'depth': '1'},
+      auth: false,
+    );
+    final bestBid = double.parse(orderbook['bids'][0][0] as String);
 
-  // 3. Price the order at 50% of the best bid: inside the accepted price
-  // band (an absurd price like 10.0 is rejected with 422) yet far too low
-  // to ever execute. btcbrl has price_increment 1.0, so use an integer.
-  final price = (bestBid * 0.5).floor().toString();
+    // 3. Price the order at 50% of the best bid: inside the accepted price
+    // band (an absurd price like 10.0 is rejected with 422) yet far too low
+    // to ever execute. btcbrl has price_increment 1.0, so use an integer.
+    final price = (bestBid * priceFactor).floor().toString();
 
-  // 4. Place a limit buy order and capture its id.
-  final order = await request('POST', '/rest/v3/orders', body: {
-    'market_symbol': 'btcbrl',
-    'side': 'BUY',
-    'type': 'LIMIT',
-    'price': price,
-    'quantity': '0.0001',
-  });
-  final orderId = order['id'] as String;
+    // 4. Place a limit buy order and capture its id.
+    final order = await request('POST', '/rest/v3/orders', body: {
+      'market_symbol': 'btcbrl',
+      'side': 'BUY',
+      'type': 'LIMIT',
+      'price': price,
+      'quantity': '0.0001',
+    });
+    final orderId = order['id'] as String;
 
-  // 5. Give the matching engine a moment to process the order.
-  await Future.delayed(const Duration(seconds: 2));
+    // 5. Give the matching engine a moment to process the order.
+    await Future.delayed(const Duration(seconds: 2));
 
-  // 6. List active orders (the new order should show up).
-  await request('GET', '/rest/v3/orders', params: {
-    'market_symbol': 'btcbrl',
-    'state': 'ACTIVE',
-  });
+    // 6. List active orders (the new order should show up).
+    await request('GET', '/rest/v3/orders', params: {
+      'market_symbol': 'btcbrl',
+      'state': 'ACTIVE',
+    });
 
-  // 7. Cancel the order by id.
-  await request('PUT', '/rest/v3/orders/cancel', body: {
-    'type': 'ID',
-    'id': orderId,
-  });
+    // 7. Cancel the order by id.
+    await request('PUT', '/rest/v3/orders/cancel', body: {
+      'type': 'ID',
+      'id': orderId,
+    });
+  } catch (error) {
+    stderr.writeln('Error: $error');
+    exit(1);
+  }
 }

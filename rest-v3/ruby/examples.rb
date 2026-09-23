@@ -14,6 +14,10 @@ require "cgi"
 require "uri"
 
 API_BASE = "https://api.foxbit.com.br"
+TIMEOUT_SECONDS = 30
+# Limit price as a fraction of the best bid. The API rejects prices too far
+# from the market (422, code 5005); the band width is not documented.
+PRICE_FACTOR = 0.5
 
 API_KEY = ENV.fetch("FOXBIT_API_KEY", "")
 API_SECRET = ENV.fetch("FOXBIT_API_SECRET", "")
@@ -67,7 +71,8 @@ def request(method, path, params: nil, body: nil, auth: true)
   end
 
   request_class = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PUT" => Net::HTTP::Put }.fetch(method)
-  response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+  response = Net::HTTP.start(uri.host, uri.port, use_ssl: true,
+                             open_timeout: TIMEOUT_SECONDS, read_timeout: TIMEOUT_SECONDS) do |http|
     req = request_class.new(uri, headers)
     req.body = raw_body unless raw_body.empty?
     http.request(req)
@@ -93,8 +98,8 @@ best_bid = orderbook["bids"][0][0] # best bid price, as a decimal string
 # 3. Price the order at 50% of the best bid: within the accepted price band
 # (absurd prices such as a hardcoded 10.0 are rejected with 422), yet far too
 # low to ever execute. btcbrl has price_increment 1.0, so round to an integer.
-price = (best_bid.to_f * 0.5).floor.to_s
-puts "Best bid: #{best_bid} | Order price (50%): #{price}"
+price = (best_bid.to_f * PRICE_FACTOR).floor.to_s
+puts "Best bid: #{best_bid} | Order price: #{price}"
 
 # 4. Create a LIMIT BUY order.
 order = request("POST", "/rest/v3/orders", body: {

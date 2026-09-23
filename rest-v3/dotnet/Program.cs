@@ -15,12 +15,19 @@ using System.Text;
 using System.Text.Json;
 
 const string BaseUrl = "https://api.foxbit.com.br";
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const decimal PriceFactor = 0.5m;
 
 // Fail fast if credentials are missing. Never print them.
 var apiKey = RequireEnv("FOXBIT_API_KEY");
 var apiSecret = RequireEnv("FOXBIT_API_SECRET");
 
-using var http = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+using var http = new HttpClient
+{
+    BaseAddress = new Uri(BaseUrl),
+    Timeout = TimeSpan.FromSeconds(30),
+};
 
 try
 {
@@ -38,7 +45,7 @@ try
     //    price increment is 1.0). That keeps the order inside the exchange's
     //    accepted price band — an absurd price like 10.0 is rejected with a 422 —
     //    while staying far too low to ever execute.
-    var price = Math.Floor(bestBid / 2).ToString("F0", CultureInfo.InvariantCulture);
+    var price = Math.Floor(bestBid * PriceFactor).ToString("F0", CultureInfo.InvariantCulture);
     Console.WriteLine($"Best bid: {bestBid} BRL, order price: {price} BRL");
 
     // 4. Place a LIMIT BUY order for 0.0001 BTC.

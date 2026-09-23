@@ -7,6 +7,10 @@ import {
 
 const MARKET_SYMBOL = "btcbrl";
 const QUANTITY = "0.0001";
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const PRICE_FACTOR = 0.5;
+const TIMEOUT_MS = 30_000;
 
 // Fail fast if credentials are missing, before making any request.
 const apiKey = process.env.FOXBIT_API_KEY;
@@ -47,7 +51,12 @@ async function main(): Promise<void> {
   // The official SDK signs every authenticated request for us
   // (HMAC-SHA256 over the canonical prehash). We only supply the
   // API key/secret here; the signing details are internal to the SDK.
-  const config = new Configuration({ apiKey, apiSecret });
+  const config = new Configuration({
+    apiKey,
+    apiSecret,
+    // baseOptions is merged into every axios request by the SDK.
+    baseOptions: { timeout: TIMEOUT_MS },
+  });
   const memberApi = new MemberInfoApi(config);
   const marketApi = new MarketDataApi(config);
   const tradingApi = new TradingApi(config);
@@ -76,7 +85,7 @@ async function main(): Promise<void> {
   //    (a hardcoded value such as 10.0 is rejected with HTTP 422 "Price out
   //    of range") while staying far enough below market that the order never
   //    executes before we cancel it.
-  const price = Math.floor(Number(bestBid) * 0.5).toString();
+  const price = Math.floor(Number(bestBid) * PRICE_FACTOR).toString();
   console.log("--------------------------------------------------");
   console.log(`Best bid: ${bestBid} -> limit price: ${price}`);
 

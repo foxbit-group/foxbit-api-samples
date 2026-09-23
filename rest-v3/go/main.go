@@ -23,6 +23,13 @@ import (
 
 const baseURL = "https://api.foxbit.com.br"
 
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const priceFactor = 0.5
+
+// Never use http.DefaultClient for real calls: it has no timeout.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
 // param is one query-string key/value pair. Params are kept in a slice
 // because Go maps have no defined order, and the query in the signed prehash
 // must list pairs in the exact order they appear in the request URL.
@@ -121,7 +128,7 @@ func request(method, path string, params []param, body any, authenticated bool) 
 		req.Header.Set("X-FB-ACCESS-SIGNATURE", signature)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
@@ -173,8 +180,8 @@ func run() error {
 	// the exchange's accepted price band (an absurd price like 10.0 is
 	// rejected with HTTP 422) while staying far too low to ever execute.
 	// btcbrl has price_increment 1.0, so the price is an integer string.
-	price := strconv.FormatFloat(math.Floor(bestBid*0.5), 'f', 0, 64)
-	fmt.Printf("Best bid: %s -> order price (50%%): %s\n", book.Bids[0][0], price)
+	price := strconv.FormatFloat(math.Floor(bestBid*priceFactor), 'f', 0, 64)
+	fmt.Printf("Best bid: %s -> order price: %s\n", book.Bids[0][0], price)
 
 	// Step 4: create the limit buy order (authenticated, JSON body).
 	orderResp, err := request("POST", "/rest/v3/orders", nil, orderRequest{

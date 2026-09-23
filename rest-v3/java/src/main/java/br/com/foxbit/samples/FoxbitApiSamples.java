@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.SequencedMap;
@@ -32,10 +33,14 @@ import java.util.StringJoiner;
 public final class FoxbitApiSamples {
 
     private static final String API_BASE_URL = "https://api.foxbit.com.br";
+    // Limit price as a fraction of the best bid. The API rejects prices too far
+    // from the market (422, code 5005); the band width is not documented.
+    private static final BigDecimal PRICE_FACTOR = new BigDecimal("0.5");
     private static final String API_KEY = System.getenv("FOXBIT_API_KEY");
     private static final String API_SECRET = System.getenv("FOXBIT_API_SECRET");
 
-    private static final HttpClient HTTP = HttpClient.newHttpClient();
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
     public static void main(String[] args) {
         if (API_KEY == null || API_KEY.isBlank() || API_SECRET == null || API_SECRET.isBlank()) {
@@ -58,7 +63,7 @@ public final class FoxbitApiSamples {
             // rejected with 422) while being far too low to ever execute. The btcbrl
             // market has price_increment 1.0, so the price is formatted as an integer.
             String price = new BigDecimal(bestBid)
-                    .multiply(new BigDecimal("0.5"))
+                    .multiply(PRICE_FACTOR)
                     .setScale(0, RoundingMode.FLOOR)
                     .toPlainString();
 
@@ -116,6 +121,7 @@ public final class FoxbitApiSamples {
         System.out.println(method + " " + pathWithQuery);
 
         var builder = HttpRequest.newBuilder(URI.create(API_BASE_URL + pathWithQuery))
+                .timeout(TIMEOUT)
                 .header("Content-Type", "application/json")
                 .method(method, rawBody == null
                         ? HttpRequest.BodyPublishers.noBody()
@@ -155,9 +161,13 @@ public final class FoxbitApiSamples {
         return new QueryStrings(decoded.toString(), encoded.toString());
     }
 
-    /** Percent-encodes one query component per RFC 3986 (space is %20, never +). */
+    /** Percent-encodes one query component per RFC 3986: space is %20 (never +),
+     * and URLEncoder's form encoding is corrected for '*' (raw) and '~' (escaped). */
     private static String percentEncode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+        return URLEncoder.encode(value, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("*", "%2A")
+                .replace("%7E", "~");
     }
 
     /** Prehash string and its HMAC-SHA256 signature (lowercase hex). */

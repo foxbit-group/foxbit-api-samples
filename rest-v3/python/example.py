@@ -21,6 +21,10 @@ import requests
 API_BASE_URL = "https://api.foxbit.com.br"
 API_KEY = os.getenv("FOXBIT_API_KEY", "")
 API_SECRET = os.getenv("FOXBIT_API_SECRET", "")
+TIMEOUT_SECONDS = 30
+# Limit price as a fraction of the best bid. The API rejects prices too far
+# from the market (422, code 5005); the band width is not documented.
+PRICE_FACTOR = 0.5
 
 
 def encode_query(params):
@@ -75,10 +79,13 @@ def request(method, path, params=None, body=None, authenticated=True):
 
     # data= sends raw_body byte for byte; json= would re-serialize the body
     # and could produce different bytes than the ones that were signed.
-    response = requests.request(method, url, headers=headers, data=raw_body or None)
+    response = requests.request(
+        method, url, headers=headers, data=raw_body or None, timeout=TIMEOUT_SECONDS
+    )
     print(f"Response ({response.status_code}): {response.text}")
+    # Raise instead of exiting: keeps this helper reusable outside a script.
     if not 200 <= response.status_code < 300:
-        sys.exit(f"{method} {path} failed with status {response.status_code}")
+        raise RuntimeError(f"{method} {path} failed with status {response.status_code}")
     return response.json()
 
 
@@ -102,7 +109,7 @@ def main():
     #    API accepts (an absurd price like 10.0 is rejected with 422) yet far
     #    too low to ever fill. btcbrl uses price_increment 1.0, so the price
     #    must be a whole number.
-    price = str(math.floor(best_bid * 0.5))
+    price = str(math.floor(best_bid * PRICE_FACTOR))
 
     # 4. Place a LIMIT BUY order for 0.0001 BTC.
     order = request(
@@ -133,4 +140,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        sys.exit(f"Error: {error}")

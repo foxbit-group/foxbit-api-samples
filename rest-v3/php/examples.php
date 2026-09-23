@@ -12,6 +12,10 @@
 declare(strict_types=1);
 
 const API_BASE_URL = 'https://api.foxbit.com.br';
+const TIMEOUT_SECONDS = 30;
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const PRICE_FACTOR = 0.5;
 
 function logLine(string $message): void
 {
@@ -93,6 +97,8 @@ function request(string $method, string $path, array $params = [], ?array $body 
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => TIMEOUT_SECONDS,
+        CURLOPT_CONNECTTIMEOUT => TIMEOUT_SECONDS,
     ]);
     if ($rawBody !== '') {
         curl_setopt($curl, CURLOPT_POSTFIELDS, $rawBody);
@@ -100,16 +106,17 @@ function request(string $method, string $path, array $params = [], ?array $body 
 
     $responseBody = curl_exec($curl);
     if ($responseBody === false) {
-        fwrite(STDERR, 'Request failed: ' . curl_error($curl) . "\n");
-        exit(1);
+        $error = curl_error($curl);
+        curl_close($curl);
+        throw new RuntimeException('Request failed: ' . $error);
     }
     $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     curl_close($curl);
 
     logLine("Response ({$status}): {$responseBody}");
+    // Throw instead of exiting: keeps this helper reusable outside a script.
     if ($status < 200 || $status >= 300) {
-        fwrite(STDERR, "Request failed with HTTP {$status}.\n");
-        exit(1);
+        throw new RuntimeException("{$method} {$path} failed with HTTP {$status}.");
     }
 
     return json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
@@ -123,37 +130,42 @@ foreach (['FOXBIT_API_KEY', 'FOXBIT_API_SECRET'] as $envVar) {
     }
 }
 
-// 1. Get account information (authenticated).
-request('GET', '/rest/v3/me');
+try {
+    // 1. Get account information (authenticated).
+    request('GET', '/rest/v3/me');
 
-// 2. Fetch the order book — a public endpoint, so no authentication headers.
-$orderbook = request('GET', '/rest/v3/markets/btcbrl/orderbook', ['depth' => '1'], null, false);
-$bestBid = $orderbook['bids'][0][0];
+    // 2. Fetch the order book — a public endpoint, so no authentication headers.
+    $orderbook = request('GET', '/rest/v3/markets/btcbrl/orderbook', ['depth' => '1'], null, false);
+    $bestBid = $orderbook['bids'][0][0];
 
-// 3. Price the order at 50% of the best bid, formatted as an integer
-// (btcbrl has price_increment 1.0). The API enforces price bands, so an
-// absurdly low hardcoded price such as "10.0" is rejected with HTTP 422;
-// half the market price stays inside the band yet far from execution.
-$price = (string) (int) floor((float) $bestBid * 0.5);
-logLine("Best bid: {$bestBid} — order price (50% of it): {$price}");
+    // 3. Price the order at 50% of the best bid, formatted as an integer
+    // (btcbrl has price_increment 1.0). The API enforces price bands, so an
+    // absurdly low hardcoded price such as "10.0" is rejected with HTTP 422;
+    // half the market price stays inside the band yet far from execution.
+    $price = (string) (int) floor((float) $bestBid * PRICE_FACTOR);
+    logLine("Best bid: {$bestBid} — order price: {$price}");
 
-// 4. Place a limit buy order. This is a real order; it is canceled in step 7.
-$order = request('POST', '/rest/v3/orders', [], [
-    'market_symbol' => 'btcbrl',
-    'side' => 'BUY',
-    'type' => 'LIMIT',
-    'price' => $price,
-    'quantity' => '0.0001',
-]);
-$orderId = (string) $order['id'];
+    // 4. Place a limit buy order. This is a real order; it is canceled in step 7.
+    $order = request('POST', '/rest/v3/orders', [], [
+        'market_symbol' => 'btcbrl',
+        'side' => 'BUY',
+        'type' => 'LIMIT',
+        'price' => $price,
+        'quantity' => '0.0001',
+    ]);
+    $orderId = (string) $order['id'];
 
-// 5. Give the matching engine a moment to process the order.
-sleep(2);
+    // 5. Give the matching engine a moment to process the order.
+    sleep(2);
 
-// 6. List active orders — the order placed in step 4 should be in the list.
-request('GET', '/rest/v3/orders', ['market_symbol' => 'btcbrl', 'state' => 'ACTIVE']);
+    // 6. List active orders — the order placed in step 4 should be in the list.
+    request('GET', '/rest/v3/orders', ['market_symbol' => 'btcbrl', 'state' => 'ACTIVE']);
 
-// 7. Cancel the order created in step 4.
-request('PUT', '/rest/v3/orders/cancel', [], ['type' => 'ID', 'id' => $orderId]);
+    // 7. Cancel the order created in step 4.
+    request('PUT', '/rest/v3/orders/cancel', [], ['type' => 'ID', 'id' => $orderId]);
 
-logLine('Done.');
+    logLine('Done.');
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    exit(1);
+}

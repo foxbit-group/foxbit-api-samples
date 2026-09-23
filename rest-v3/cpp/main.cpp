@@ -31,6 +31,10 @@ using json = nlohmann::json;
 using Params = std::vector<std::pair<std::string, std::string>>;
 
 const std::string API_BASE_URL = "https://api.foxbit.com.br";
+const long TIMEOUT_SECONDS = 30;
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const double PRICE_FACTOR = 0.5;
 
 std::string apiKey;    // FOXBIT_API_KEY
 std::string apiSecret; // FOXBIT_API_SECRET
@@ -154,6 +158,8 @@ json request(const std::string& method, const std::string& path,
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeCallback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &responseBody);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, TIMEOUT_SECONDS);
+    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, TIMEOUT_SECONDS);
     if (body != nullptr) {
         // POSTFIELDS keeps a pointer to rawBody, which outlives the transfer.
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE,
@@ -201,7 +207,7 @@ int main() {
         //    far too low to ever fill. btcbrl uses price_increment 1.0, so the
         //    price must be a whole number.
         const std::string price =
-            std::to_string(static_cast<long long>(std::floor(bestBid * 0.5)));
+            std::to_string(static_cast<long long>(std::floor(bestBid * PRICE_FACTOR)));
 
         // 4. Place a LIMIT BUY order for 0.0001 BTC. nlohmann/json sorts object
         //    keys on dump() -- harmless, because the exact string produced here

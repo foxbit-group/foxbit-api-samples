@@ -10,5 +10,7 @@ RUN npm run build
 # dependencies (native fetch + node:crypto), so only the built output is copied.
 FROM node:22.22.0-alpine3.23
 WORKDIR /app
+# package.json carries "type": "module", which the emitted ESM output needs.
+COPY package.json ./
 COPY --from=build /app/dist ./dist
 CMD ["node", "dist/examples.js"]

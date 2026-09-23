@@ -5,6 +5,10 @@
 import { createHmac } from 'node:crypto';
 
 const BASE_URL = 'https://api.foxbit.com.br';
+const TIMEOUT_MS = 30_000;
+// Limit price as a fraction of the best bid. The API rejects prices too far
+// from the market (422, code 5005); the band width is not documented.
+const PRICE_FACTOR = 0.5;
 
 const API_KEY = process.env.FOXBIT_API_KEY;
 const API_SECRET = process.env.FOXBIT_API_SECRET;
@@ -12,6 +16,15 @@ const API_SECRET = process.env.FOXBIT_API_SECRET;
 if (!API_KEY || !API_SECRET) {
   console.error('Missing credentials: set the FOXBIT_API_KEY and FOXBIT_API_SECRET environment variables.');
   process.exit(1);
+}
+
+// Percent-encode per RFC 3986: encodeURIComponent leaves ! ' ( ) * alone,
+// so they are escaped explicitly. Space becomes %20, never +.
+function encodeRfc3986(value) {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => '%' + char.charCodeAt(0).toString(16).toUpperCase(),
+  );
 }
 
 // Build both representations of the query string from the SAME ordered params:
@@ -22,7 +35,7 @@ function buildQueryStrings(params) {
   const entries = Object.entries(params ?? {});
   const decoded = entries.map(([key, value]) => `${key}=${value}`).join('&');
   const encoded = entries
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .map(([key, value]) => `${encodeRfc3986(key)}=${encodeRfc3986(value)}`)
     .join('&');
   return { decoded, encoded };
 }
@@ -57,7 +70,12 @@ async function request(method, path, { params, body, auth = true } = {}) {
     headers['X-FB-ACCESS-SIGNATURE'] = sign(method, path, decoded, rawBody, timestamp);
   }
 
-  const response = await fetch(url, { method, headers, body: rawBody || undefined });
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: rawBody || undefined,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
   const text = await response.text();
   console.log(`Response (${response.status}): ${text}`);
 
@@ -84,7 +102,7 @@ async function main() {
   // (btcbrl has price_increment 1.0). 50% stays inside the exchange price
   // band — absurd values like a hardcoded 10.0 are rejected with 422 —
   // while remaining far too low to ever execute.
-  const price = String(Math.floor(bestBid * 0.5));
+  const price = String(Math.floor(bestBid * PRICE_FACTOR));
 
   // 4. Create a LIMIT BUY order and capture its id.
   const order = await request('POST', '/rest/v3/orders', {
