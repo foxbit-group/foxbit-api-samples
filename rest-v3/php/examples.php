@@ -141,8 +141,7 @@ try {
     // 3. Price the order at 50% of the best bid, formatted as an integer
     // (btcbrl has price_increment 1.0). The API enforces price bands, so an
     // absurdly low hardcoded price such as "10.0" is rejected with HTTP 422;
-    // half the market price is far enough below the market that it is not
-    // expected to fill before it is canceled.
+    // half the market price is not expected to fill before it is canceled.
     $price = (string) (int) floor((float) $bestBid * PRICE_FACTOR);
     logLine("Best bid: {$bestBid} — order price: {$price}");
 
