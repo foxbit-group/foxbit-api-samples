@@ -81,9 +81,9 @@ async function main() {
   const bestBid = Number(orderbook.data.bids[0][0]);
 
   // 3. Price the order at 50% of the best bid, rounded to an integer
-  // (btcbrl has price_increment 1.0). This stays inside the exchange's
-  // accepted price band — a hardcoded value like 10.0 is rejected with
-  // 422 "Price out of range" — while being far too low to ever execute.
+  // (btcbrl has price_increment 1.0). A hardcoded value like 10.0 is rejected
+  // with 422 "Price out of range"; 50% is far enough below the market that
+  // the order is not expected to fill before it is canceled.
   const price = String(Math.floor(bestBid * PRICE_FACTOR));
 
   // 4. Create the order at the computed price.
