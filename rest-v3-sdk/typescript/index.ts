@@ -99,29 +99,37 @@ async function main(): Promise<void> {
       quantity: QUANTITY,
     },
   });
-  logStep("POST /rest/v3/orders", created.data);
-
   const orderId = created.data.id;
   if (orderId === undefined) {
     throw new Error("Order created but no id was returned");
   }
 
-  // 5. Give the matching engine a moment to register the order.
-  await sleep(2000);
+  try {
+    logStep("POST /rest/v3/orders", created.data);
 
-  // 6. Authenticated request: list active orders. The order we just placed
-  //    should appear in the result.
-  const active = await tradingApi.listOrders({
-    marketSymbol: MARKET_SYMBOL,
-    state: "ACTIVE",
-  });
-  logStep("GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE", active.data);
+    // 5. Give the matching engine a moment to register the order.
+    await sleep(2000);
 
-  // 7. Authenticated request: cancel the order we created.
-  const canceled = await tradingApi.cancelOrders({
-    cancelOrdersRequest: { type: "ID", id: orderId },
-  });
-  logStep("PUT /rest/v3/orders/cancel", canceled.data);
+    // 6. Authenticated request: list active orders. The order we just placed
+    //    should appear in the result.
+    const active = await tradingApi.listOrders({
+      marketSymbol: MARKET_SYMBOL,
+      state: "ACTIVE",
+    });
+    logStep("GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE", active.data);
+  } finally {
+    // 7. Authenticated request: cancel the order we created. Runs even
+    //    if step 5 or 6 failed, so no real order is left open.
+    try {
+      const canceled = await tradingApi.cancelOrders({
+        cancelOrdersRequest: { type: "ID", id: orderId },
+      });
+      logStep("PUT /rest/v3/orders/cancel", canceled.data);
+    } catch (error) {
+      console.error(`Could not cancel order ${orderId}; cancel it manually.`);
+      throw error;
+    }
+  }
 }
 
 main().catch((error) => {

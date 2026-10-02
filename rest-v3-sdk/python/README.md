@@ -1,15 +1,15 @@
-# Foxbit REST API v3 — TypeScript Example (Official SDK)
+# Foxbit REST API v3 — Python Example (Official SDK)
 
-[![npm version](https://img.shields.io/npm/v/@foxbit-group/rest-api.svg?style=flat)](https://www.npmjs.com/package/@foxbit-group/rest-api)
+[![PyPI version](https://img.shields.io/pypi/v/foxbit-group-rest-api.svg?style=flat)](https://pypi.org/project/foxbit-group-rest-api/)
 
 This example integrates with the Foxbit REST API v3 using the official
-[`@foxbit-group/rest-api`](https://www.npmjs.com/package/@foxbit-group/rest-api)
+[`foxbit-group-rest-api`](https://pypi.org/project/foxbit-group-rest-api/)
 SDK. The SDK handles request signing for you, so this example focuses on a
 clean, end-to-end trading flow.
 
 ## What it does
 
-The program (`index.ts`) runs the following flow and exits non-zero on any error:
+The program (`example.py`) runs the following flow and exits non-zero on any error:
 
 1. `GET /rest/v3/me` — authenticated: fetch the account tied to the API key.
 2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — public: read the best bid.
@@ -30,7 +30,7 @@ The program (`index.ts`) runs the following flow and exits non-zero on any error
 ## Requirements
 
 - **Docker** (recommended) — no local toolchain needed.
-- Optional native run: **Node.js >= 18**.
+- Optional native run: **Python >= 3.10**.
 
 ## Credentials
 
@@ -48,31 +48,31 @@ program fails fast with a clear message if either variable is missing.
 ## Run with Docker
 
 ```bash
-docker build -t foxbit-sample-sdk-typescript .
+docker build -t foxbit-sample-sdk-python .
 
 # Pass the variables from your shell...
-docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-sdk-typescript
+docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-sdk-python
 
 # ...or from a .env file:
-docker run --rm --env-file .env foxbit-sample-sdk-typescript
+docker run --rm --env-file .env foxbit-sample-sdk-python
 ```
 
 ## Run natively
 
 ```bash
-npm ci
-npm run build
-npm start
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python example.py
 ```
 
 ## How request signing works
 
 This example signs authenticated requests with HMAC-SHA256 over a canonical
 prehash (`timestamp + method + path + decoded query string + raw body`). The
-`@foxbit-group/rest-api` SDK builds this prehash and signs each request
+`foxbit-group-rest-api` SDK builds this prehash and signs each request
 internally — you only provide the API key and secret to `Configuration`. The
-SDK also supports Ed25519 keys (recommended by the SDK) via `privateKey` instead
-of `apiSecret`. Public endpoints such as the order book require no
+SDK also supports Ed25519 keys (recommended by the SDK) via `private_key` instead
+of `api_secret`. Public endpoints such as the order book require no
 authentication.
 
 For the full API reference, see the
