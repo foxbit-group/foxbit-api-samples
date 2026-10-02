@@ -25,7 +25,7 @@ The program (`index.ts`) runs the following flow and exits non-zero on any error
 > 50% of the current market price). Pricing off the live market keeps the order
 > inside the exchange price band (a hardcoded value such as `10.0` is rejected
 > with HTTP 422 "Price out of range") while staying far enough below market that
-> it never executes. Step 7 cancels it.
+> it never executes. Step 7 cancels it, even if step 5 or 6 fails.
 
 ## Requirements
 

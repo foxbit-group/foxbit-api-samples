@@ -99,21 +99,29 @@ async function main() {
   logStep("POST /rest/v3/orders", created);
   const orderId = created.data.id;
 
-  // 5. Give the matching engine a moment before listing orders.
-  await sleep(2000);
+  try {
+    // 5. Give the matching engine a moment before listing orders.
+    await sleep(2000);
 
-  // 6. List active orders — the order created above should be in the list.
-  const active = await tradingApi.listOrders({
-    marketSymbol: MARKET_SYMBOL,
-    state: "ACTIVE",
-  });
-  logStep(`GET /rest/v3/orders?market_symbol=${MARKET_SYMBOL}&state=ACTIVE`, active);
-
-  // 7. Cancel the order created in step 4 by its id.
-  const canceled = await tradingApi.cancelOrders({
-    cancelOrdersRequest: { type: "ID", id: orderId },
-  });
-  logStep("PUT /rest/v3/orders/cancel", canceled);
+    // 6. List active orders — the order created above should be in the list.
+    const active = await tradingApi.listOrders({
+      marketSymbol: MARKET_SYMBOL,
+      state: "ACTIVE",
+    });
+    logStep(`GET /rest/v3/orders?market_symbol=${MARKET_SYMBOL}&state=ACTIVE`, active);
+  } finally {
+    // 7. Cancel the order created in step 4 by its id. Runs even if
+    // step 5 or 6 failed, so no real order is left open.
+    try {
+      const canceled = await tradingApi.cancelOrders({
+        cancelOrdersRequest: { type: "ID", id: orderId },
+      });
+      logStep("PUT /rest/v3/orders/cancel", canceled);
+    } catch (error) {
+      console.error(`Could not cancel order ${orderId}; cancel it manually.`);
+      throw error;
+    }
+  }
 }
 
 main().catch(fail);
