@@ -95,10 +95,9 @@ request("GET", "/rest/v3/me")
 orderbook = request("GET", "/rest/v3/markets/btcbrl/orderbook", params: { "depth" => "1" }, auth: false)
 best_bid = orderbook["bids"][0][0] # best bid price, as a decimal string
 
-# 3. Price the order at 50% of the best bid: far enough below the market that
-# it is not expected to fill before it is cancelled (absurd prices such as a
-# hardcoded 10.0 are rejected with 422). btcbrl has price_increment 1.0, so
-# round to an integer.
+# 3. Price at 50% of the best bid: absurd prices like 10.0 are rejected with
+# 422, and this one is not expected to fill before it is cancelled.
+# btcbrl has price_increment 1.0, so round to an integer.
 price = (best_bid.to_f * PRICE_FACTOR).floor.to_s
 puts "Best bid: #{best_bid} | Order price: #{price}"
 
