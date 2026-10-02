@@ -6,13 +6,13 @@ Sample code showing how to integrate with the [Foxbit REST API v3](https://docs.
 
 1. `GET /rest/v3/me` — fetches your account info (authenticated).
 2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — fetches the order book (public endpoint, no authentication required).
-3. Computes a safe limit price: 50% of the current best bid. This keeps the order inside the API price band (prices too far from the market are rejected with HTTP 422) while being far too low to ever fill.
+3. Computes a limit price: 50% of the current best bid. Prices too far from the market are rejected with HTTP 422, and 50% is far enough below the market that the order is not expected to fill before it is canceled.
 4. `POST /rest/v3/orders` — places a **real** LIMIT BUY order for 0.0001 BTC at that price (authenticated).
 5. Waits 2 seconds.
 6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — lists active orders; the new order shows up here (authenticated).
-7. `PUT /rest/v3/orders/cancel` — cancels the order created in step 4 (authenticated).
+7. `PUT /rest/v3/orders/cancel` — cancels the order created in step 4 (authenticated). This step runs even if step 5 or 6 fails.
 
-> **Warning**: step 4 places a real order on your account. It sits ~50% below the market and is cancelled by the example itself a few seconds later, but always double-check before running against an account with funds at play.
+> **Warning**: step 4 places a real order on your account. It sits ~50% below the market and is cancelled by the example itself a few seconds later, but always double-check before running against an account with funds at play. The exchange price band is not documented: if the API rejects the price (HTTP 422), raise the price factor constant (`PRICE_FACTOR`, `priceFactor` or `PriceFactor`, depending on the language). A sharp market drop before the cancel step could still fill the order.
 
 ## Languages
 

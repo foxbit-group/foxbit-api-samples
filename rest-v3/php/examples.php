@@ -141,7 +141,8 @@ try {
     // 3. Price the order at 50% of the best bid, formatted as an integer
     // (btcbrl has price_increment 1.0). The API enforces price bands, so an
     // absurdly low hardcoded price such as "10.0" is rejected with HTTP 422;
-    // half the market price stays inside the band yet far from execution.
+    // half the market price is far enough below the market that it is not
+    // expected to fill before it is canceled.
     $price = (string) (int) floor((float) $bestBid * PRICE_FACTOR);
     logLine("Best bid: {$bestBid} — order price: {$price}");
 
@@ -155,14 +156,22 @@ try {
     ]);
     $orderId = (string) $order['id'];
 
-    // 5. Give the matching engine a moment to process the order.
-    sleep(2);
+    try {
+        // 5. Give the matching engine a moment to process the order.
+        sleep(2);
 
-    // 6. List active orders — the order placed in step 4 should be in the list.
-    request('GET', '/rest/v3/orders', ['market_symbol' => 'btcbrl', 'state' => 'ACTIVE']);
-
-    // 7. Cancel the order created in step 4.
-    request('PUT', '/rest/v3/orders/cancel', [], ['type' => 'ID', 'id' => $orderId]);
+        // 6. List active orders — the order placed in step 4 should be in the list.
+        request('GET', '/rest/v3/orders', ['market_symbol' => 'btcbrl', 'state' => 'ACTIVE']);
+    } finally {
+        // 7. Cancel the order created in step 4. Runs even if step 5 or 6
+        //    failed, so no real order is left open.
+        try {
+            request('PUT', '/rest/v3/orders/cancel', [], ['type' => 'ID', 'id' => $orderId]);
+        } catch (Throwable $cancelError) {
+            fwrite(STDERR, "Could not cancel order {$orderId}; cancel it manually.\n");
+            throw $cancelError;
+        }
+    }
 
     logLine('Done.');
 } catch (Throwable $e) {

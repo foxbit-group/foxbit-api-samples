@@ -95,9 +95,10 @@ request("GET", "/rest/v3/me")
 orderbook = request("GET", "/rest/v3/markets/btcbrl/orderbook", params: { "depth" => "1" }, auth: false)
 best_bid = orderbook["bids"][0][0] # best bid price, as a decimal string
 
-# 3. Price the order at 50% of the best bid: within the accepted price band
-# (absurd prices such as a hardcoded 10.0 are rejected with 422), yet far too
-# low to ever execute. btcbrl has price_increment 1.0, so round to an integer.
+# 3. Price the order at 50% of the best bid: far enough below the market that
+# it is not expected to fill before it is cancelled (absurd prices such as a
+# hardcoded 10.0 are rejected with 422). btcbrl has price_increment 1.0, so
+# round to an integer.
 price = (best_bid.to_f * PRICE_FACTOR).floor.to_s
 puts "Best bid: #{best_bid} | Order price: #{price}"
 
@@ -111,14 +112,22 @@ order = request("POST", "/rest/v3/orders", body: {
 })
 order_id = order.fetch("id")
 
-# 5. Give the order a moment to show up in listings.
-sleep 2
+begin
+  # 5. Give the order a moment to show up in listings.
+  sleep 2
 
-# 6. List active orders — the order created above should appear.
-request("GET", "/rest/v3/orders", params: { "market_symbol" => "btcbrl", "state" => "ACTIVE" })
-
-# 7. Cancel the order by id.
-request("PUT", "/rest/v3/orders/cancel", body: { "type" => "ID", "id" => order_id })
+  # 6. List active orders — the order created above should appear.
+  request("GET", "/rest/v3/orders", params: { "market_symbol" => "btcbrl", "state" => "ACTIVE" })
+ensure
+  # 7. Cancel the order by id. Runs even if step 5 or 6 failed, so no real
+  #    order is left open.
+  begin
+    request("PUT", "/rest/v3/orders/cancel", body: { "type" => "ID", "id" => order_id })
+  rescue SystemExit, StandardError
+    warn "Could not cancel order #{order_id}; cancel it manually."
+    raise
+  end
+end
 
 puts "-" * 50
 puts "Done: order #{order_id} was created, listed and cancelled."

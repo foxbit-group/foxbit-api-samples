@@ -105,10 +105,10 @@ def main():
     )
     best_bid = float(orderbook["bids"][0][0])
 
-    # 3. Price the order at 50% of the best bid: inside the price band the
-    #    API accepts (an absurd price like 10.0 is rejected with 422) yet far
-    #    too low to ever fill. btcbrl uses price_increment 1.0, so the price
-    #    must be a whole number.
+    # 3. Price the order at 50% of the best bid: far enough below the market
+    #    that it is not expected to fill before it is canceled (an absurd
+    #    price like 10.0 is rejected with 422). btcbrl uses price_increment
+    #    1.0, so the price must be a whole number.
     price = str(math.floor(best_bid * PRICE_FACTOR))
 
     # 4. Place a LIMIT BUY order for 0.0001 BTC.
@@ -125,18 +125,24 @@ def main():
     )
     order_id = order["id"]
 
-    # 5. Give the order a moment to show up in the active list.
-    time.sleep(2)
+    try:
+        # 5. Give the order a moment to show up in the active list.
+        time.sleep(2)
 
-    # 6. List active orders -- the order placed above should appear.
-    request(
-        "GET",
-        "/rest/v3/orders",
-        params={"market_symbol": "btcbrl", "state": "ACTIVE"},
-    )
-
-    # 7. Cancel the order placed in step 4.
-    request("PUT", "/rest/v3/orders/cancel", body={"type": "ID", "id": order_id})
+        # 6. List active orders -- the order placed above should appear.
+        request(
+            "GET",
+            "/rest/v3/orders",
+            params={"market_symbol": "btcbrl", "state": "ACTIVE"},
+        )
+    finally:
+        # 7. Cancel the order placed in step 4. Runs even if step 5 or 6
+        #    failed, so no real order is left open.
+        try:
+            request("PUT", "/rest/v3/orders/cancel", body={"type": "ID", "id": order_id})
+        except Exception:
+            print(f"Could not cancel order {order_id}; cancel it manually.", file=sys.stderr)
+            raise
 
 
 if __name__ == "__main__":

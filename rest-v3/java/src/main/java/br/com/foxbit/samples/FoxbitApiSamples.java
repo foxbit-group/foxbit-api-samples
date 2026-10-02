@@ -58,10 +58,10 @@ public final class FoxbitApiSamples {
             String orderbook = request("GET", "/rest/v3/markets/btcbrl/orderbook", orderbookParams, null, false);
             String bestBid = new JSONObject(orderbook).getJSONArray("bids").getJSONArray(0).getString(0);
 
-            // Step 3: price the order at 50% of the best bid. That stays inside the
-            // price band accepted by the API (an absurd price such as "10.0" is
-            // rejected with 422) while being far too low to ever execute. The btcbrl
-            // market has price_increment 1.0, so the price is formatted as an integer.
+            // Step 3: price the order at 50% of the best bid. That is far enough below
+            // the market that it is not expected to fill before it is canceled (an
+            // absurd price such as "10.0" is rejected with 422). The btcbrl market
+            // has price_increment 1.0, so the price is formatted as an integer.
             String price = new BigDecimal(bestBid)
                     .multiply(PRICE_FACTOR)
                     .setScale(0, RoundingMode.FLOOR)
@@ -79,21 +79,29 @@ public final class FoxbitApiSamples {
             String created = request("POST", "/rest/v3/orders", null, orderBody, true);
             String orderId = new JSONObject(created).getString("id");
 
-            // Step 5: give the matching engine a moment before listing.
-            Thread.sleep(2000);
+            try {
+                // Step 5: give the matching engine a moment before listing.
+                Thread.sleep(2000);
 
-            // Step 6: list active orders — the order created above shows up here.
-            var orderFilters = new LinkedHashMap<String, String>();
-            orderFilters.put("market_symbol", "btcbrl");
-            orderFilters.put("state", "ACTIVE");
-            request("GET", "/rest/v3/orders", orderFilters, null, true);
-
-            // Step 7: cancel the order by its id.
-            String cancelBody = new JSONObject()
-                    .put("type", "ID")
-                    .put("id", orderId)
-                    .toString();
-            request("PUT", "/rest/v3/orders/cancel", null, cancelBody, true);
+                // Step 6: list active orders — the order created above shows up here.
+                var orderFilters = new LinkedHashMap<String, String>();
+                orderFilters.put("market_symbol", "btcbrl");
+                orderFilters.put("state", "ACTIVE");
+                request("GET", "/rest/v3/orders", orderFilters, null, true);
+            } finally {
+                // Step 7: cancel the order by its id. Runs even if step 5 or 6
+                // failed, so no real order is left open.
+                String cancelBody = new JSONObject()
+                        .put("type", "ID")
+                        .put("id", orderId)
+                        .toString();
+                try {
+                    request("PUT", "/rest/v3/orders/cancel", null, cancelBody, true);
+                } catch (Exception e) {
+                    System.err.println("Could not cancel order " + orderId + "; cancel it manually.");
+                    throw e;
+                }
+            }
 
             System.out.println("--------------------------------------------------");
             System.out.println("Done: order " + orderId + " created and cancelled.");

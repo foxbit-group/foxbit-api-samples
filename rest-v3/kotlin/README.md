@@ -10,9 +10,9 @@ It runs the following flow:
 4. `POST /rest/v3/orders` — create a LIMIT BUY order for 0.0001 BTC.
 5. Wait 2 seconds.
 6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders (the new order shows up).
-7. `PUT /rest/v3/orders/cancel` — cancel the order by id.
+7. `PUT /rest/v3/orders/cancel` — cancel the order by id (runs even if step 5 or 6 fails).
 
-> **Warning:** this example creates a REAL order on your account (LIMIT BUY of 0.0001 BTC at 50% of the market price — inside the accepted price band but far too low to ever execute) and cancels it right after.
+> **Warning:** this example creates a REAL order on your account (LIMIT BUY of 0.0001 BTC at 50% of the market price — far below the market, so it is not expected to execute) and cancels it right after. The exchange price band is not documented: if the API rejects the price (HTTP 422), raise `PRICE_FACTOR`. A sharp market drop before the cancel step could still fill the order.
 
 ## Requirements
 
