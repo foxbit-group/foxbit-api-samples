@@ -22,13 +22,14 @@ In addition to examples using direct HTTP requests, we also provide examples usi
 Available for the following languages:
 - [JavaScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk/javascript)
 - [TypeScript](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk/typescript)
+- [Python](https://github.com/foxbit-group/foxbit-api-samples/tree/main/rest-v3-sdk/python)
 
 The official SDK provides:
 
-- **Full TypeScript typing** support
+- **Full typing** support (TypeScript types and typed Python models)
 - **Automatic error handling**
 - **Built-in parameter validation**
-- **Simple installation** via npm: `npm install @foxbit-group/rest-api`
+- **Simple installation** via npm (`npm install @foxbit-group/rest-api`) or pip (`pip install foxbit-group-rest-api`)
 
 **We recommend using the official SDK** for new projects as it offers better developer experience and greater stability.
 
