@@ -1,41 +1,60 @@
-# Foxbit REST API v3 — Python SDK Example
+# Foxbit REST API v3 — Python Example (Official SDK)
 
 [![PyPI version](https://img.shields.io/pypi/v/foxbit-group-rest-api.svg?style=flat)](https://pypi.org/project/foxbit-group-rest-api/)
 
-A minimal Python example of the [Foxbit REST API v3](https://docs.foxbit.com.br/rest/v3/) built on the official SDK, [`foxbit-group-rest-api`](https://pypi.org/project/foxbit-group-rest-api/). It runs a complete flow in 7 steps:
+This example integrates with the Foxbit REST API v3 using the official
+[`foxbit-group-rest-api`](https://pypi.org/project/foxbit-group-rest-api/)
+SDK. The SDK handles request signing for you, so this example focuses on a
+clean, end-to-end trading flow.
 
-1. `GET /rest/v3/me` — authenticated request with no parameters.
-2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — public market data to read the best bid.
-3. Compute a limit price at 50% of the best bid, floored to an integer (`btcbrl` uses `price_increment: 1.0`).
-4. `POST /rest/v3/orders` — create a LIMIT BUY for 0.0001 BTC at the computed price.
+## What it does
+
+The program (`example.py`) runs the following flow and exits non-zero on any error:
+
+1. `GET /rest/v3/me` — authenticated: fetch the account tied to the API key.
+2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — public: read the best bid.
+3. Compute a limit price at 50% of the best bid, floored to an integer
+   (`btcbrl` uses `price_increment: 1.0`).
+4. `POST /rest/v3/orders` — authenticated: place the order.
 5. Wait 2 seconds.
-6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
-7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
+6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — authenticated:
+   the new order should be listed.
+7. `PUT /rest/v3/orders/cancel` — authenticated: cancel the order by id.
 
-> **Warning:** this example creates a REAL order on your account (LIMIT BUY 0.0001 BTC at 50% of the market price — inside the exchange price band, but far too low to ever execute) and cancels it right after.
+> **Heads up:** step 4 places a **real** order (LIMIT BUY of `0.0001` BTC at
+> 50% of the current market price). Pricing off the live market keeps the order
+> inside the exchange price band (a hardcoded value such as `10.0` is rejected
+> with HTTP 422 "Price out of range") while staying far enough below market that
+> it never executes. Step 7 cancels it, even if step 5 or 6 fails.
 
 ## Requirements
 
-- Docker (recommended), or
-- Python 3.10+ to run natively.
+- **Docker** (recommended) — no local toolchain needed.
+- Optional native run: **Python >= 3.10**.
 
 ## Credentials
 
-Create an API key at <https://app.foxbit.com.br/profile/api-key> and export it:
+Create an API key at <https://app.foxbit.com.br/profile/api-key> and expose it
+as environment variables:
 
 ```bash
 export FOXBIT_API_KEY="your-api-key"
 export FOXBIT_API_SECRET="your-api-secret"
 ```
 
-Alternatively, put both variables in a `.env` file and use `--env-file .env` with Docker.
+Or place them in a `.env` file and pass it with `--env-file` (see below). The
+program fails fast with a clear message if either variable is missing.
 
 ## Run with Docker
 
 ```bash
 docker build -t foxbit-sample-sdk-python .
+
+# Pass the variables from your shell...
 docker run --rm -e FOXBIT_API_KEY -e FOXBIT_API_SECRET foxbit-sample-sdk-python
-# or: docker run --rm --env-file .env foxbit-sample-sdk-python
+
+# ...or from a .env file:
+docker run --rm --env-file .env foxbit-sample-sdk-python
 ```
 
 ## Run natively
@@ -48,10 +67,11 @@ python example.py
 
 ## How request signing works
 
-Every authenticated request must be signed and carry the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The optional `X-FB-RECEIVE-WINDOW` header limits how far the timestamp may drift from the server clock; the SDK sends it by default (10000 ms).
+Every authenticated request must be signed with HMAC-SHA256 over a canonical
+prehash (`timestamp + method + path + decoded query string + raw body`). The
+`foxbit-group-rest-api` SDK builds this prehash and signs each request
+internally — you only provide the API key and secret to `Configuration`. Public
+endpoints such as the order book require no authentication.
 
-**The official SDK handles all of this for you.** When you build a `Configuration` with your `api_key`/`api_secret`, the SDK computes the prehash (`timestamp + method + path + queryString + rawBody`), signs it with HMAC-SHA256 and attaches the headers on every call, so this example contains no manual signing code. The SDK also supports Ed25519 keys: pass `private_key` instead of `api_secret`, as described in the [SDK documentation](https://pypi.org/project/foxbit-group-rest-api/).
-
-API errors raise typed exceptions (`UnauthorizedException`, `TooManyRequestsException`, etc.), all subclasses of `ApiException`. This example prints only the HTTP status and the response body, never the request headers.
-
-If you need to implement signing yourself, see the dependency-free examples under [`rest-v3/`](../../rest-v3) and the full documentation at <https://docs.foxbit.com.br/rest/v3/>.
+For the full API reference, see the
+[Foxbit API documentation](https://docs.foxbit.com.br/rest/v3/).
