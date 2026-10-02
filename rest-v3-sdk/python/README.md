@@ -48,7 +48,7 @@ python example.py
 
 ## How request signing works
 
-Every authenticated request must be signed and carry the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds), `X-FB-ACCESS-SIGNATURE` and `X-FB-RECEIVE-WINDOW`.
+Every authenticated request must be signed and carry the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`. The optional `X-FB-RECEIVE-WINDOW` header limits how far the timestamp may drift from the server clock; the SDK sends it by default (10000 ms).
 
 **The official SDK handles all of this for you.** When you build a `Configuration` with your `api_key`/`api_secret`, the SDK computes the prehash (`timestamp + method + path + queryString + rawBody`), signs it with HMAC-SHA256 and attaches the headers on every call, so this example contains no manual signing code. The SDK also supports Ed25519 keys: pass `private_key` instead of `api_secret`, as described in the [SDK documentation](https://pypi.org/project/foxbit-group-rest-api/).
 

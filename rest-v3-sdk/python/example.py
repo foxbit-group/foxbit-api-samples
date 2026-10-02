@@ -88,18 +88,24 @@ def main():
         if created.id is None:
             raise RuntimeError("Order created but no id was returned")
 
-        # 5. Give the matching engine a moment to register the order.
-        time.sleep(2)
+        try:
+            # 5. Give the matching engine a moment to register the order.
+            time.sleep(2)
 
-        # 6. Authenticated request: the new order should be listed as active.
-        active = trading_api.list_orders(market_symbol=MARKET_SYMBOL, state="ACTIVE")
-        log_step(f"GET /rest/v3/orders?market_symbol={MARKET_SYMBOL}&state=ACTIVE", active)
-
-        # 7. Authenticated request: cancel the order created in step 4.
-        canceled = trading_api.cancel_orders(
-            CancelOrdersRequest(OrdersCancelId(type="ID", id=created.id))
-        )
-        log_step("PUT /rest/v3/orders/cancel", canceled)
+            # 6. Authenticated request: the new order should be listed as active.
+            active = trading_api.list_orders(market_symbol=MARKET_SYMBOL, state="ACTIVE")
+            log_step(f"GET /rest/v3/orders?market_symbol={MARKET_SYMBOL}&state=ACTIVE", active)
+        finally:
+            # 7. Authenticated request: cancel the order created in step 4.
+            #    Runs even if step 5 or 6 failed, so no real order is left open.
+            try:
+                canceled = trading_api.cancel_orders(
+                    CancelOrdersRequest(OrdersCancelId(type="ID", id=created.id))
+                )
+            except Exception:
+                print(f"Could not cancel order {created.id}; cancel it manually.", file=sys.stderr)
+                raise
+            log_step("PUT /rest/v3/orders/cancel", canceled)
 
 
 if __name__ == "__main__":
