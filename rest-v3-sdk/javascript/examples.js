@@ -96,10 +96,11 @@ async function main() {
       quantity: "0.0001",
     },
   });
-  logStep("POST /rest/v3/orders", created);
   const orderId = created.data.id;
 
   try {
+    logStep("POST /rest/v3/orders", created);
+
     // 5. Give the matching engine a moment before listing orders.
     await sleep(2000);
 

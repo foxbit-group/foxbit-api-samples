@@ -94,13 +94,13 @@ def main():
                 )
             )
         )
-        log_step("POST /rest/v3/orders", created)
-
         order_id = created.id
         if order_id is None:
             raise RuntimeError("Order created but no id was returned")
 
         try:
+            log_step("POST /rest/v3/orders", created)
+
             # 5. Give the matching engine a moment to register the order.
             time.sleep(2)
 

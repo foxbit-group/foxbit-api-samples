@@ -99,14 +99,14 @@ async function main(): Promise<void> {
       quantity: QUANTITY,
     },
   });
-  logStep("POST /rest/v3/orders", created.data);
-
   const orderId = created.data.id;
   if (orderId === undefined) {
     throw new Error("Order created but no id was returned");
   }
 
   try {
+    logStep("POST /rest/v3/orders", created.data);
+
     // 5. Give the matching engine a moment to register the order.
     await sleep(2000);
 
