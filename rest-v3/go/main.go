@@ -176,9 +176,9 @@ func run() error {
 		return fmt.Errorf("parsing best bid %q: %w", book.Bids[0][0], err)
 	}
 
-	// Step 3: price the order at 50% of the best bid. That keeps it inside
-	// the exchange's accepted price band (an absurd price like 10.0 is
-	// rejected with HTTP 422) while staying far too low to ever execute.
+	// Step 3: price the order at 50% of the best bid: far enough below the
+	// market that it is not expected to fill before it is canceled (an
+	// absurd price like 10.0 is rejected with HTTP 422).
 	// btcbrl has price_increment 1.0, so the price is an integer string.
 	price := strconv.FormatFloat(math.Floor(bestBid*priceFactor), 'f', 0, 64)
 	fmt.Printf("Best bid: %s -> order price: %s\n", book.Bids[0][0], price)
@@ -209,13 +209,17 @@ func run() error {
 
 	// Step 6: list active orders (authenticated, with query params).
 	params := []param{{"market_symbol", "btcbrl"}, {"state", "ACTIVE"}}
-	if _, err := request("GET", "/rest/v3/orders", params, nil, true); err != nil {
+	// A failure is kept, not returned, so that step 7 still runs.
+	_, listErr := request("GET", "/rest/v3/orders", params, nil, true)
+
+	// Step 7: cancel the order created in step 4. Runs even if step 5 or 6
+	// failed, so no real order is left open.
+	if _, err := request("PUT", "/rest/v3/orders/cancel", nil, cancelRequest{Type: "ID", ID: order.ID}, true); err != nil {
+		fmt.Fprintf(os.Stderr, "Could not cancel order %s; cancel it manually.\n", order.ID)
 		return err
 	}
-
-	// Step 7: cancel the order created in step 4.
-	if _, err := request("PUT", "/rest/v3/orders/cancel", nil, cancelRequest{Type: "ID", ID: order.ID}, true); err != nil {
-		return err
+	if listErr != nil {
+		return listErr
 	}
 
 	fmt.Println("--------------------------------------------------")

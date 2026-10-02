@@ -143,18 +143,26 @@ async function main(): Promise<void> {
   });
   const orderId: string = created.id;
 
-  // 5. Give the engine a moment to register the order.
-  await sleep(2000);
+  try {
+    // 5. Give the engine a moment to register the order.
+    await sleep(2000);
 
-  // 6. List active orders; the order created above should appear.
-  await request('GET', '/rest/v3/orders', {
-    params: { market_symbol: marketSymbol, state: 'ACTIVE' },
-  });
-
-  // 7. Cancel the order by id.
-  await request('PUT', '/rest/v3/orders/cancel', {
-    body: { type: 'ID', id: orderId },
-  });
+    // 6. List active orders; the order created above should appear.
+    await request('GET', '/rest/v3/orders', {
+      params: { market_symbol: marketSymbol, state: 'ACTIVE' },
+    });
+  } finally {
+    // 7. Cancel the order created in step 4. Runs even if step 5 or 6
+    //    failed, so no real order is left open.
+    try {
+      await request('PUT', '/rest/v3/orders/cancel', {
+        body: { type: 'ID', id: orderId },
+      });
+    } catch (error) {
+      console.error(`Could not cancel order ${orderId}; cancel it manually.`);
+      throw error;
+    }
+  }
 }
 
 main().catch((error: unknown) => {

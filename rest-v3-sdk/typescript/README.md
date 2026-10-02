@@ -22,10 +22,14 @@ The program (`index.ts`) runs the following flow and exits non-zero on any error
 7. `PUT /rest/v3/orders/cancel` — authenticated: cancel the order by id.
 
 > **Heads up:** step 4 places a **real** order (LIMIT BUY of `0.0001` BTC at
-> 50% of the current market price). Pricing off the live market keeps the order
-> inside the exchange price band (a hardcoded value such as `10.0` is rejected
-> with HTTP 422 "Price out of range") while staying far enough below market that
-> it never executes. Step 7 cancels it, even if step 5 or 6 fails.
+> 50% of the current market price). Pricing off the live market avoids the
+> HTTP 422 "Price out of range" a hardcoded value such as `10.0` gets, while
+> staying far enough below market that the order is not expected to execute.
+> Step 7 cancels it, even if step 5 or 6 fails.
+>
+> The exchange price band is not documented: if the API rejects the price
+> (HTTP 422), raise `PRICE_FACTOR`. A sharp market drop before step 7 could
+> still fill the order.
 
 ## Requirements
 

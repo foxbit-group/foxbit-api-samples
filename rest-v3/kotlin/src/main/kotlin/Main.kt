@@ -120,9 +120,9 @@ fun main() {
         )
         val bestBid = JSONObject(orderbook).getJSONArray("bids").getJSONArray(0).getString(0)
 
-        // 3. Bid at 50% of the best bid: inside the accepted price band (absurd values
-        // like a hardcoded 10.0 are rejected with 422 "Price out of range") yet far too
-        // low to ever execute. btcbrl has price_increment 1.0, so format as an integer.
+        // 3. Bid at 50% of the best bid: far enough below the market that it is not expected
+        // to fill before it is canceled (absurd values like a hardcoded 10.0 are rejected with
+        // 422 "Price out of range"). btcbrl has price_increment 1.0, so format as an integer.
         val price = floor(bestBid.toDouble() * PRICE_FACTOR).toLong().toString()
         println("Best bid: $bestBid -> limit order price: $price")
 
@@ -137,14 +137,22 @@ fun main() {
         val created = request("POST", "/rest/v3/orders", body = order)
         val orderId = JSONObject(created).getString("id")
 
-        // 5. Give the matching engine a moment to register the order.
-        Thread.sleep(2_000)
+        try {
+            // 5. Give the matching engine a moment to register the order.
+            Thread.sleep(2_000)
 
-        // 6. The new order must show up among the active ones.
-        request("GET", "/rest/v3/orders", params = listOf("market_symbol" to "btcbrl", "state" to "ACTIVE"))
-
-        // 7. Cancel the order by its id.
-        request("PUT", "/rest/v3/orders/cancel", body = JSONObject().put("type", "ID").put("id", orderId))
+            // 6. The new order must show up among the active ones.
+            request("GET", "/rest/v3/orders", params = listOf("market_symbol" to "btcbrl", "state" to "ACTIVE"))
+        } finally {
+            // 7. Cancel the order by its id. Runs even if step 5 or 6 failed,
+            //    so no real order is left open.
+            try {
+                request("PUT", "/rest/v3/orders/cancel", body = JSONObject().put("type", "ID").put("id", orderId))
+            } catch (error: Exception) {
+                System.err.println("Could not cancel order $orderId; cancel it manually.")
+                throw error
+            }
+        }
 
         println("-".repeat(50))
         println("Done: order $orderId created and cancelled.")

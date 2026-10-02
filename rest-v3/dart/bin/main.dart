@@ -134,9 +134,9 @@ Future<void> main() async {
     );
     final bestBid = double.parse(orderbook['bids'][0][0] as String);
 
-    // 3. Price the order at 50% of the best bid: inside the accepted price
-    // band (an absurd price like 10.0 is rejected with 422) yet far too low
-    // to ever execute. btcbrl has price_increment 1.0, so use an integer.
+    // 3. Price at 50% of the best bid: far enough below the market that it is
+    // not expected to fill before it is canceled (an absurd price like 10.0 is
+    // rejected with 422). btcbrl has price_increment 1.0, so use an integer.
     final price = (bestBid * priceFactor).floor().toString();
 
     // 4. Place a limit buy order and capture its id.
@@ -149,20 +149,28 @@ Future<void> main() async {
     });
     final orderId = order['id'] as String;
 
-    // 5. Give the matching engine a moment to process the order.
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // 5. Give the matching engine a moment to process the order.
+      await Future.delayed(const Duration(seconds: 2));
 
-    // 6. List active orders (the new order should show up).
-    await request('GET', '/rest/v3/orders', params: {
-      'market_symbol': 'btcbrl',
-      'state': 'ACTIVE',
-    });
-
-    // 7. Cancel the order by id.
-    await request('PUT', '/rest/v3/orders/cancel', body: {
-      'type': 'ID',
-      'id': orderId,
-    });
+      // 6. List active orders (the new order should show up).
+      await request('GET', '/rest/v3/orders', params: {
+        'market_symbol': 'btcbrl',
+        'state': 'ACTIVE',
+      });
+    } finally {
+      // 7. Cancel the order by id. Runs even if step 5 or 6 failed, so no
+      //    real order is left open.
+      try {
+        await request('PUT', '/rest/v3/orders/cancel', body: {
+          'type': 'ID',
+          'id': orderId,
+        });
+      } catch (error) {
+        stderr.writeln('Could not cancel order $orderId; cancel it manually.');
+        rethrow;
+      }
+    }
   } catch (error) {
     stderr.writeln('Error: $error');
     exit(1);

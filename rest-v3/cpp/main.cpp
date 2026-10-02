@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -202,10 +203,10 @@ int main() {
                                        {{"depth", "1"}}, nullptr, false);
         const double bestBid = std::stod(orderbook["bids"][0][0].get<std::string>());
 
-        // 3. Price the order at 50% of the best bid: inside the price band the
-        //    API accepts (an absurd price like 10.0 is rejected with 422) yet
-        //    far too low to ever fill. btcbrl uses price_increment 1.0, so the
-        //    price must be a whole number.
+        // 3. Price the order at 50% of the best bid: far enough below the
+        //    market that it is not expected to fill before it is canceled (an
+        //    absurd price like 10.0 is rejected with 422). btcbrl uses
+        //    price_increment 1.0, so the price must be a whole number.
         const std::string price =
             std::to_string(static_cast<long long>(std::floor(bestBid * PRICE_FACTOR)));
 
@@ -220,16 +221,28 @@ int main() {
         const json order = request("POST", "/rest/v3/orders", {}, &orderBody);
         const std::string orderId = order["id"].get<std::string>();
 
-        // 5. Give the order a moment to show up in the active list.
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        std::exception_ptr listError; // rethrown after the cancel in step 7
+        try {
+            // 5. Give the order a moment to show up in the active list.
+            std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        // 6. List active orders -- the order placed above should appear.
-        request("GET", "/rest/v3/orders",
-                {{"market_symbol", "btcbrl"}, {"state", "ACTIVE"}});
+            // 6. List active orders -- the order placed above should appear.
+            request("GET", "/rest/v3/orders",
+                    {{"market_symbol", "btcbrl"}, {"state", "ACTIVE"}});
+        } catch (...) {
+            listError = std::current_exception();
+        }
 
-        // 7. Cancel the order placed in step 4.
-        const json cancelBody = {{"type", "ID"}, {"id", orderId}};
-        request("PUT", "/rest/v3/orders/cancel", {}, &cancelBody);
+        // 7. Cancel the order placed in step 4. Runs even if step 5 or 6
+        //    failed, so no real order is left open.
+        try {
+            const json cancelBody = {{"type", "ID"}, {"id", orderId}};
+            request("PUT", "/rest/v3/orders/cancel", {}, &cancelBody);
+        } catch (...) {
+            std::cerr << "Could not cancel order " << orderId << "; cancel it manually.\n";
+            throw;
+        }
+        if (listError) std::rethrow_exception(listError);
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << "\n";
         exitCode = EXIT_FAILURE;

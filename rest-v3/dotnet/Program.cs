@@ -42,9 +42,9 @@ try
         CultureInfo.InvariantCulture);
 
     // 3. Bid at 50% of the best bid, rounded down to a whole number (the btcbrl
-    //    price increment is 1.0). That keeps the order inside the exchange's
-    //    accepted price band — an absurd price like 10.0 is rejected with a 422 —
-    //    while staying far too low to ever execute.
+    //    price increment is 1.0). That keeps the order far enough below the market
+    //    that it is not expected to fill before it is canceled — an absurd price
+    //    like 10.0 is rejected with a 422.
     var price = Math.Floor(bestBid * PriceFactor).ToString("F0", CultureInfo.InvariantCulture);
     Console.WriteLine($"Best bid: {bestBid} BRL, order price: {price} BRL");
 
@@ -60,19 +60,33 @@ try
     using var order = JsonDocument.Parse(orderJson);
     var orderId = order.RootElement.GetProperty("id").GetString()!;
 
-    // 5. Give the exchange a moment to process the order.
-    await Task.Delay(2000);
-
-    // 6. The new order should show up among the active orders.
-    await RequestAsync("GET", "/rest/v3/orders",
-        query: [("market_symbol", "btcbrl"), ("state", "ACTIVE")]);
-
-    // 7. Cancel the order by its id.
-    await RequestAsync("PUT", "/rest/v3/orders/cancel", body: new Dictionary<string, string>
+    try
     {
-        ["type"] = "ID",
-        ["id"] = orderId,
-    });
+        // 5. Give the exchange a moment to process the order.
+        await Task.Delay(2000);
+
+        // 6. The new order should show up among the active orders.
+        await RequestAsync("GET", "/rest/v3/orders",
+            query: [("market_symbol", "btcbrl"), ("state", "ACTIVE")]);
+    }
+    finally
+    {
+        // 7. Cancel the order by its id. Runs even if step 5 or 6 failed,
+        //    so no real order is left open.
+        try
+        {
+            await RequestAsync("PUT", "/rest/v3/orders/cancel", body: new Dictionary<string, string>
+            {
+                ["type"] = "ID",
+                ["id"] = orderId,
+            });
+        }
+        catch
+        {
+            Console.Error.WriteLine($"Could not cancel order {orderId}; cancel it manually.");
+            throw;
+        }
+    }
 
     return 0;
 }

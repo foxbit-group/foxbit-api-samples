@@ -154,9 +154,9 @@ do {
         throw ExampleError("Could not read best bid from order book response")
     }
 
-    // 3. Price at 50% of the best bid: inside the accepted price band but far
-    //    from ever executing. The API rejects absurd prices (e.g. 10.0) with
-    //    422. btcbrl has price_increment 1.0, so format it as an integer.
+    // 3. Price at 50% of the best bid: far enough below the market that it is not
+    //    expected to fill before it is canceled. The API rejects absurd prices
+    //    (e.g. 10.0) with 422. btcbrl has price_increment 1.0, so format it as an integer.
     let price = String(Int((bestBid * priceFactor).rounded(.down)))
 
     // 4. Create the order. The body is serialized ONCE; the same string is
@@ -180,27 +180,43 @@ do {
         throw ExampleError("Could not read order id from create-order response")
     }
 
-    // 5. Give the matching engine a moment before listing.
-    try await Task.sleep(nanoseconds: 2_000_000_000)
+    // Steps 5 and 6 may fail; keep the error so step 7 still runs (defer
+    // cannot await), then rethrow it once the order is canceled.
+    var listError: Error?
+    do {
+        // 5. Give the matching engine a moment before listing.
+        try await Task.sleep(nanoseconds: 2_000_000_000)
 
-    // 6. List active orders — the order created above should be present.
-    _ = try await request(
-        apiKey: apiKey,
-        apiSecret: apiSecret,
-        method: "GET",
-        path: "/rest/v3/orders",
-        params: [("market_symbol", "btcbrl"), ("state", "ACTIVE")]
-    )
+        // 6. List active orders — the order created above should be present.
+        _ = try await request(
+            apiKey: apiKey,
+            apiSecret: apiSecret,
+            method: "GET",
+            path: "/rest/v3/orders",
+            params: [("market_symbol", "btcbrl"), ("state", "ACTIVE")]
+        )
+    } catch {
+        listError = error
+    }
 
-    // 7. Cancel the order created in step 4.
-    let cancelBody = try jsonBody(["type": "ID", "id": orderId])
-    _ = try await request(
-        apiKey: apiKey,
-        apiSecret: apiSecret,
-        method: "PUT",
-        path: "/rest/v3/orders/cancel",
-        rawBody: cancelBody
-    )
+    // 7. Cancel the order created in step 4. Runs even if step 5 or 6
+    //    failed, so no real order is left open.
+    do {
+        let cancelBody = try jsonBody(["type": "ID", "id": orderId])
+        _ = try await request(
+            apiKey: apiKey,
+            apiSecret: apiSecret,
+            method: "PUT",
+            path: "/rest/v3/orders/cancel",
+            rawBody: cancelBody
+        )
+    } catch {
+        FileHandle.standardError.write(
+            Data("Could not cancel order \(orderId); cancel it manually.\n".utf8)
+        )
+        throw error
+    }
+    if let listError { throw listError }
 
     print(String(repeating: "-", count: 50))
     print("Done: order \(orderId) created and cancelled.")

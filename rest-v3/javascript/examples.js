@@ -99,9 +99,9 @@ async function main() {
   const bestBid = Number(orderbook.bids[0][0]);
 
   // 3. Price the order at 50% of the best bid, formatted as an integer
-  // (btcbrl has price_increment 1.0). 50% stays inside the exchange price
-  // band — absurd values like a hardcoded 10.0 are rejected with 422 —
-  // while remaining far too low to ever execute.
+  // (btcbrl has price_increment 1.0). 50% is far enough below the market
+  // that it is not expected to fill before it is canceled — absurd values
+  // like a hardcoded 10.0 are rejected with 422.
   const price = String(Math.floor(bestBid * PRICE_FACTOR));
 
   // 4. Create a LIMIT BUY order and capture its id.
@@ -115,18 +115,26 @@ async function main() {
     },
   });
 
-  // 5. Give the matching engine a moment to register the order.
-  await sleep(2000);
+  try {
+    // 5. Give the matching engine a moment to register the order.
+    await sleep(2000);
 
-  // 6. List active orders — the order created above should appear.
-  await request('GET', '/rest/v3/orders', {
-    params: { market_symbol: 'btcbrl', state: 'ACTIVE' },
-  });
-
-  // 7. Cancel the order by its id.
-  await request('PUT', '/rest/v3/orders/cancel', {
-    body: { type: 'ID', id: order.id },
-  });
+    // 6. List active orders — the order created above should appear.
+    await request('GET', '/rest/v3/orders', {
+      params: { market_symbol: 'btcbrl', state: 'ACTIVE' },
+    });
+  } finally {
+    // 7. Cancel the order created in step 4. Runs even if step 5 or 6
+    //    failed, so no real order is left open.
+    try {
+      await request('PUT', '/rest/v3/orders/cancel', {
+        body: { type: 'ID', id: order.id },
+      });
+    } catch (error) {
+      console.error(`Could not cancel order ${order.id}; cancel it manually.`);
+      throw error;
+    }
+  }
 }
 
 main().catch((error) => {

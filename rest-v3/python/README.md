@@ -6,16 +6,18 @@ a full order lifecycle:
 
 1. `GET /rest/v3/me` — fetch account information (authenticated).
 2. `GET /rest/v3/markets/btcbrl/orderbook?depth=1` — read the public orderbook (no authentication).
-3. Compute a safe order price: 50% of the best bid, rounded down to a whole number.
+3. Compute an order price: 50% of the best bid, rounded down to a whole number.
 4. `POST /rest/v3/orders` — place a LIMIT BUY order for 0.0001 BTC.
 5. Wait 2 seconds.
 6. `GET /rest/v3/orders?market_symbol=btcbrl&state=ACTIVE` — list active orders.
-7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4.
+7. `PUT /rest/v3/orders/cancel` — cancel the order created in step 4 (runs even if step 5 or 6 fails).
 
 > **Warning:** step 4 creates a REAL order on your account — a LIMIT BUY of
-> 0.0001 BTC at 50% of the current market price. That price is inside the
-> accepted price band but far too low to ever execute, and the order is
-> canceled at the end of the flow.
+> 0.0001 BTC at 50% of the current market price. That price is far below the
+> market, so it is not expected to execute, and the order is canceled at the
+> end of the flow. The exchange price band is not documented: if the API
+> rejects the price (HTTP 422), raise PRICE_FACTOR. A sharp market drop before
+> the cancel step could still fill the order.
 
 ## Requirements
 

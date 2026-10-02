@@ -74,10 +74,9 @@ def main():
 
         # 3. Price at 50% of the best bid, floored to an integer. The btcbrl
         #    market has price_increment 1.0, so the price must be a whole number.
-        #    Pricing off the live market keeps us inside the exchange price band
-        #    (a hardcoded value such as 10.0 is rejected with HTTP 422 "Price out
-        #    of range") while staying far enough below market that the order never
-        #    executes before we cancel it.
+        #    Pricing off the live market avoids the HTTP 422 "Price out of range"
+        #    a hardcoded value such as 10.0 gets, while staying far enough below
+        #    market that the order is not expected to fill before it is canceled.
         price = str(math.floor(float(best_bid) * PRICE_FACTOR))
         print("--------------------------------------------------")
         print(f"Best bid: {best_bid} -> limit price: {price}")
