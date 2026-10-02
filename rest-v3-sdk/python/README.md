@@ -67,11 +67,13 @@ python example.py
 
 ## How request signing works
 
-Every authenticated request must be signed with HMAC-SHA256 over a canonical
+This example signs authenticated requests with HMAC-SHA256 over a canonical
 prehash (`timestamp + method + path + decoded query string + raw body`). The
 `foxbit-group-rest-api` SDK builds this prehash and signs each request
-internally — you only provide the API key and secret to `Configuration`. Public
-endpoints such as the order book require no authentication.
+internally — you only provide the API key and secret to `Configuration`. The
+SDK also supports Ed25519 keys (recommended by the SDK) via `private_key` instead
+of `api_secret`. Public endpoints such as the order book require no
+authentication.
 
 For the full API reference, see the
 [Foxbit API documentation](https://docs.foxbit.com.br/rest/v3/).

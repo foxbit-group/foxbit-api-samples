@@ -48,6 +48,6 @@ npm start
 
 ## How request signing works
 
-Every authenticated request must be signed with HMAC-SHA256 and carry the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`.
+This example signs every authenticated request with HMAC-SHA256 (the SDK also supports Ed25519 keys via `privateKey`); each one carries the headers `X-FB-ACCESS-KEY`, `X-FB-ACCESS-TIMESTAMP` (UNIX time in milliseconds) and `X-FB-ACCESS-SIGNATURE`.
 
 **The official SDK handles all of this for you.** When you build a `Configuration` with your `apiKey`/`apiSecret`, the SDK computes the prehash (`timestamp + method + path + queryString + rawBody`), signs it and attaches the headers on every call — so this example contains no manual signing code. If you need to implement signing yourself, see the dependency-free examples under [`rest-v3/`](../../rest-v3) and the full documentation at <https://docs.foxbit.com.br/rest/v3/>.
